@@ -30,7 +30,7 @@ class _MyAppState extends State<MyApp> {
       darkTheme: _darkTheme(),
       themeMode: ThemeMode.system,
       initialBinding: ControllerBinder(),
-      home: ChessBoardScreen(),
+      home: const SplashScreen(),
     );
   }
 }

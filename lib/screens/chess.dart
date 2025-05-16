@@ -36,8 +36,22 @@ class ChessPiece {
   final String symbol;
   final String name;
 
+  // Track movement history
+  final int enPassantUsedCount; // how many times this pawn captured en passant
+  final bool justMovedThreeOrTwoSquares; // if moved 2 or 3 squares last move
+
   ChessPiece(this.color, this.type)
       : symbol = _getSymbol(type, color),
+        name = _getName(type),
+        enPassantUsedCount = 0,
+        justMovedThreeOrTwoSquares = false;
+
+  ChessPiece.withHistory({
+    required this.color,
+    required this.type,
+    required this.enPassantUsedCount,
+    required this.justMovedThreeOrTwoSquares,
+  })  : symbol = _getSymbol(type, color),
         name = _getName(type);
 
   static String _getSymbol(PieceType type, PieceColor color) {
@@ -125,7 +139,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('10x10 Chess with Missiles'),
+        title: Text('Dynamic Chess '),
         actions: [
           Padding(
             padding: EdgeInsets.only(right: 20),
@@ -210,7 +224,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       int row, int col, bool isSelected, bool isPossibleMove) {
     if (isSelected) return Colors.blue[400]!;
     if (isPossibleMove) return Colors.blue[200]!;
-    return (row + col) % 2 == 0 ? Colors.brown[300]! : Colors.brown[100]!;
+    return (row + col) % 2 == 0 ? Colors.yellow : Colors.green;
   }
 
   void _handleTap(int row, int col) {
@@ -232,15 +246,23 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
   void _movePiece(int fromRow, int fromCol, int toRow, int toCol) {
     setState(() {
+      final movingPiece = board[fromRow][fromCol];
       final capturedPiece = board[toRow][toCol];
-      if (capturedPiece != null) {
-        gameStatus =
-            '${currentPlayer == PieceColor.white ? 'White' : 'Black'} captured ${capturedPiece.name}';
+
+      if (movingPiece != null && movingPiece.type == PieceType.pawn) {
+        final distance = (fromRow - toRow).abs();
+        final justMovedTwoOrThree = distance == 2 || distance == 3;
+
+        board[toRow][toCol] = ChessPiece.withHistory(
+          color: movingPiece.color,
+          type: movingPiece.type,
+          enPassantUsedCount: movingPiece.enPassantUsedCount,
+          justMovedThreeOrTwoSquares: justMovedTwoOrThree,
+        );
       } else {
-        gameStatus =
-            '${currentPlayer == PieceColor.white ? 'White' : 'Black'}\'s turn';
+        board[toRow][toCol] = movingPiece;
       }
-      board[toRow][toCol] = board[fromRow][fromCol];
+
       board[fromRow][fromCol] = null;
       selectedPosition = null;
       possibleMoves = [];
@@ -325,24 +347,64 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
   void _getPawnMoves(int row, int col, PieceColor color, List<Position> moves) {
     final direction = color == PieceColor.white ? -1 : 1;
+
+    // Normal forward move
     if (_isValidPosition(row + direction, col) &&
         board[row + direction][col] == null) {
       moves.add(Position(row + direction, col));
-      if ((color == PieceColor.white && row == boardSize - 2) ||
-          (color == PieceColor.black && row == 1)) {
-        if (board[row + 2 * direction][col] == null) {
+
+      // Double or triple move allowed?
+      final bool isStartingWhite = row == boardSize - 2 || row == boardSize - 3;
+      final bool isStartingBlack = row == 1 || row == 2;
+
+      if ((color == PieceColor.white && isStartingWhite) ||
+          (color == PieceColor.black && isStartingBlack)) {
+        // 2-square move
+        if (_isValidPosition(row + 2 * direction, col) &&
+            board[row + 2 * direction][col] == null) {
           moves.add(Position(row + 2 * direction, col));
+        }
+
+        // 3-square move
+        if (_isValidPosition(row + 3 * direction, col) &&
+            board[row + 3 * direction][col] == null) {
+          moves.add(Position(row + 3 * direction, col));
         }
       }
     }
-    for (final colOffset in [-1, 1]) {
+
+    // Capture moves
+    for (var colOffset in [-1, 1]) {
       final newCol = col + colOffset;
       if (newCol >= 0 &&
           newCol < boardSize &&
-          _isValidPosition(row + direction, newCol) &&
-          board[row + direction][newCol] != null &&
-          board[row + direction][newCol]!.color != color) {
-        moves.add(Position(row + direction, newCol));
+          _isValidPosition(row + direction, newCol)) {
+        final target = board[row + direction][newCol];
+        if (target != null && target.color != color) {
+          moves.add(Position(row + direction, newCol));
+        }
+      }
+    }
+
+    // En Passant Logic
+    for (var colOffset in [-1, 1]) {
+      final adjCol = col + colOffset;
+      if (adjCol >= 0 && adjCol < boardSize) {
+        final enemyPawn = board[row][adjCol];
+        if (enemyPawn is ChessPiece &&
+            enemyPawn.type == PieceType.pawn &&
+            enemyPawn.color != color) {
+          // Check if enemy pawn just did 2 or 3-square move
+          if (enemyPawn.justMovedThreeOrTwoSquares) {
+            final enPassantRow = row + direction;
+            final enPassantCol = adjCol;
+
+            if (_isValidPosition(enPassantRow, enPassantCol) &&
+                board[enPassantRow][enPassantCol] == null) {
+              moves.add(Position(enPassantRow, enPassantCol));
+            }
+          }
+        }
       }
     }
   }

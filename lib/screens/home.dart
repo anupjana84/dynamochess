@@ -1,3 +1,4 @@
+import 'package:dynamochess/screens/chess.dart';
 import 'package:dynamochess/screens/chess_board.dart';
 import 'package:dynamochess/screens/chessboard.dart';
 import 'package:dynamochess/screens/dashboard_screen.dart';
@@ -78,7 +79,7 @@ class _Home1State extends State<Home1> {
                         'Play online',
                         Icons.public,
                         onPressed: () {
-                          // Get.to(ChessBoardScreen());
+                          Get.to(ChessBoardScreen());
                           // Add your onPressed logic here
                           // Get.snackbar(
                           //   "Play Online",
