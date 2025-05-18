@@ -98,12 +98,12 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
     // Custom back row with Missiles at positions 3 and 7
     final blackPiecesOrder = [
-      PieceType.rook, // 1st (col 0)
-      PieceType.knight, // 2nd (col 1)
-      PieceType.bishop, // 3rd (col 2)
-      PieceType.missile, // 4th (col 3) ✅
-      PieceType.queen, // 5th (col 4)
-      PieceType.king, // 6th (col 5)
+      PieceType.rook, // 1st (col 0) noika
+      PieceType.knight, // 2nd (col 1) ghora
+      PieceType.bishop, // 3rd (col 2)gajh
+      PieceType.missile, // 4th (col 3) ✅ missile (special)
+      PieceType.queen, // 5th (col 4) rani
+      PieceType.king, // 6th (col 5) raja
       PieceType.missile, // 7th (col 6) ✅
       PieceType.bishop, // 8th (col 7)
       PieceType.knight, // 9th (col 8)
@@ -161,7 +161,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
             width: boardDimension,
             height: boardDimension,
             child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: boardSize,
               ),
               itemCount: boardSize * boardSize,
@@ -187,25 +187,30 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
                           ? Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(
-                                  piece.symbol,
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    color: piece.color == PieceColor.white
-                                        ? Colors.white
-                                        : Colors.black,
-                                  ),
+                                // Text(
+                                //   piece.symbol,
+                                //   style: TextStyle(
+                                //     fontSize: 20,
+                                //     color: piece.color == PieceColor.white
+                                //         ? Colors.white
+                                //         : Colors.black,
+                                //   ),
+                                // ),
+                                Image.asset(
+                                  _getPieceImageAsset(piece),
+                                  width: 30,
+                                  height: 30,
                                 ),
-                                if (piece.type == PieceType.missile)
-                                  Text(
-                                    'Missile',
-                                    style: TextStyle(
-                                      fontSize: 7,
-                                      color: piece.color == PieceColor.white
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                  ),
+                                // if (piece.type == PieceType.missile)
+                                //   Text(
+                                //     'Missile',
+                                //     style: TextStyle(
+                                //       fontSize: 7,
+                                //       color: piece.color == PieceColor.white
+                                //           ? Colors.white
+                                //           : Colors.black,
+                                //     ),
+                                //   ),
                               ],
                             )
                           : null,
@@ -218,6 +223,40 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
         },
       ),
     );
+  }
+
+  String _getPieceImageAsset(ChessPiece piece) {
+    String colorString = piece.color == PieceColor.white ? 'white' : 'black';
+    String type = '';
+    print(piece.type);
+
+    switch (piece.type) {
+      case PieceType.pawn:
+        type = 'pawn';
+        break;
+      case PieceType.rook:
+        type = 'rook';
+        break;
+      case PieceType.knight:
+        type = 'knight';
+        break;
+      case PieceType.bishop:
+        type = 'bishop';
+        break;
+      case PieceType.queen:
+        type = 'queen';
+        break;
+      case PieceType.king:
+        type = 'king';
+        break;
+      case PieceType.missile:
+        type = 'missile';
+        break;
+    }
+    String assetPath = 'assets/images/${colorString}_$type.png';
+    print('Loading asset for ${piece.type} (${piece.color}): $assetPath');
+    return assetPath;
+    //  return 'assets/images/$type.png';
   }
 
   Color _getSquareColor(
