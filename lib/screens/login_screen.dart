@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dynamochess/screens/dashboard_screen.dart';
+import 'package:dynamochess/screens/home.dart';
 import 'package:dynamochess/utils/api_call.dart';
 import 'package:dynamochess/utils/api_list.dart';
 import 'package:dynamochess/models/network_model.dart';
@@ -8,6 +9,7 @@ import 'package:dynamochess/widgets/center_circular.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,9 +34,62 @@ class _LoginScreenState extends State<LoginScreen> {
   final RegExp _passwordRegex =
       RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
 
+  // Future<void> _submitForm() async {
+  //   if (!_formKey.currentState!.validate()) return;
+
+  //   setState(() => _isLoading = true);
+
+  //   final Map<String, dynamic> data = {
+  //     'email': _emailController.text,
+  //     'password': _passwordController.text,
+  //   };
+
+  //   final NetworkResponse response =
+  //       await ApiCall.postApiCall(ApiList.login, body: data);
+
+  //   String errorMessage = "Something went wrong";
+
+  //   if (!response.isSuccess) {
+  //     try {
+  //       final errorData = jsonDecode(response.errorMessage);
+  //       if (errorData is Map && errorData.containsKey('message')) {
+  //         String rawMessage = errorData['message'];
+
+  //         // Handle MongoDB E11000 duplicate key error
+  //         if (rawMessage.startsWith('E11000')) {
+  //           RegExp regExp = RegExp(r'dup key: \{ (\w+):');
+  //           Match? match = regExp.firstMatch(rawMessage);
+  //           if (match != null && match.groupCount >= 1) {
+  //             String field = match.group(1)!;
+  //             errorMessage = "This $field is already in use";
+  //           } else {
+  //             errorMessage = "This field is already in use";
+  //           }
+  //         } else {
+  //           errorMessage = rawMessage;
+  //         }
+  //       }
+  //     } catch (e) {
+  //       errorMessage = response.errorMessage;
+  //     }
+  //   }
+
+  //   if (response.isSuccess) {
+  //     Get.snackbar("Success", "Login successful!");
+  //     Future.delayed(Duration(seconds: 1), () {
+  //       // Get.offAllNamed('/home'); // Navigate to home
+  //       //  Get.offAll(() => const DashboardScreen());
+  //     });
+  //     print(response.responseData);
+  //   } else {
+  //     Get.snackbar("Error", errorMessage, backgroundColor: Colors.red);
+  //   }
+
+  //   setState(() => _isLoading = false);
+  // }
+
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
 
     final Map<String, dynamic> data = {
@@ -52,7 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
         final errorData = jsonDecode(response.errorMessage);
         if (errorData is Map && errorData.containsKey('message')) {
           String rawMessage = errorData['message'];
-
           // Handle MongoDB E11000 duplicate key error
           if (rawMessage.startsWith('E11000')) {
             RegExp regExp = RegExp(r'dup key: \{ (\w+):');
@@ -73,10 +127,30 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (response.isSuccess) {
+      // ✅ Save user data to local storage
+      final responseData = response.responseData; // decode server response
+      final userData = responseData['data'];
+
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      // Save all fields
+      prefs.setString('_id', userData['_id']);
+      prefs.setString('role', userData['role']);
+      prefs.setString('email', userData['email']);
+      prefs.setString('name', userData['name']);
+      prefs.setString('mobile', userData['mobile']);
+      prefs.setString('countryIcon', userData['countryIcon']);
+      prefs.setString('country', userData['country']);
+      prefs.setInt('dynamoCoin', userData['dynamoCoin']);
+      prefs.setInt('Rating', userData['Rating']);
+      prefs.setString('token', userData['token']);
+
       Get.snackbar("Success", "Login successful!");
-      Future.delayed(Duration(seconds: 1), () {
-        // Get.offAllNamed('/home'); // Navigate to home
-        //  Get.offAll(() => const DashboardScreen());
+      final role = prefs.getString('_id');
+      print(role);
+
+      Future.delayed(const Duration(seconds: 1), () {
+        Get.offAll(() => const HomeScreen()); // Navigate to dashboard
       });
     } else {
       Get.snackbar("Error", errorMessage, backgroundColor: Colors.red);

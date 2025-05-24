@@ -1,22 +1,22 @@
 import 'package:dynamochess/screens/chess.dart';
-import 'package:dynamochess/screens/chess_board.dart';
-import 'package:dynamochess/screens/chessboard.dart';
+
 import 'package:dynamochess/screens/dashboard_screen.dart';
 import 'package:dynamochess/screens/login_screen.dart';
+import 'package:dynamochess/screens/off_line_chess.dart';
 import 'package:dynamochess/screens/online_play.dart';
 import 'package:dynamochess/screens/register_screen.dart';
 import 'package:dynamochess/widgets/bacground.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-class Home1 extends StatefulWidget {
-  const Home1({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<Home1> createState() => _Home1State();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _Home1State extends State<Home1> {
+class _HomeScreenState extends State<HomeScreen> {
   List<String> poplist = ["Login", "Register"];
 
   // Define a function for "Play offline"
@@ -29,7 +29,7 @@ class _Home1State extends State<Home1> {
     //   backgroundColor: Colors.green,
     //   colorText: Colors.white,
     // );
-    //Get.to(const DashboardScreen());
+    Get.to(OffLineChessScreen());
   }
 
   @override

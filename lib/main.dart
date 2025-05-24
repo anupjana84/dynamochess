@@ -1,4 +1,3 @@
-import 'package:dynamochess/screens/chess.dart';
 import 'package:dynamochess/screens/splash_screen.dart';
 
 import 'package:flutter/material.dart';

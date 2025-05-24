@@ -1,9 +1,5 @@
-import 'package:dynamochess/screens/ChessBoard.dart';
-import 'package:dynamochess/screens/chess.dart';
-import 'package:dynamochess/screens/chess_board.dart';
-import 'package:dynamochess/screens/chessboard.dart';
 import 'package:dynamochess/screens/home.dart';
-import 'package:dynamochess/screens/online_play.dart';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -47,7 +43,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigateToLoginScreen() async {
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) {
-      Get.offAll(() => const Home1());
+      Get.offAll(() => const HomeScreen());
       // Get.offAll(() => const LoginScreen());
     }
   }
