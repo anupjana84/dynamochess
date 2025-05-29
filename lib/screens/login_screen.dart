@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:dynamochess/screens/dashboard_screen.dart';
 import 'package:dynamochess/screens/home.dart';
 import 'package:dynamochess/utils/api_call.dart';
 import 'package:dynamochess/utils/api_list.dart';
@@ -31,8 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final RegExp _emailRegex = RegExp(
       r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
-  final RegExp _passwordRegex =
-      RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$');
 
   // Future<void> _submitForm() async {
   //   if (!_formKey.currentState!.validate()) return;
@@ -142,12 +139,10 @@ class _LoginScreenState extends State<LoginScreen> {
       prefs.setString('countryIcon', userData['countryIcon']);
       prefs.setString('country', userData['country']);
       prefs.setInt('dynamoCoin', userData['dynamoCoin']);
-      prefs.setInt('Rating', userData['Rating']);
+      prefs.setDouble('Rating', userData['Rating']);
       prefs.setString('token', userData['token']);
 
       Get.snackbar("Success", "Login successful!");
-      final role = prefs.getString('_id');
-      print(role);
 
       Future.delayed(const Duration(seconds: 1), () {
         Get.offAll(() => const HomeScreen()); // Navigate to dashboard
@@ -208,10 +203,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Extract tokens
       final String? idToken = googleAuth.idToken;
-      final String? accessToken = googleAuth.accessToken;
-      print("idToken");
-      print(idToken);
-      print("idToken");
 
       if (idToken == null) {
         throw Exception('Google Sign-In failed: No ID token.');

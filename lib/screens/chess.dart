@@ -1,69 +1,12 @@
+import 'package:dynamochess/models/user_details.dart';
+import 'package:dynamochess/screens/chesspiece.dart';
+import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:audioplayers/audioplayers.dart'; // For playing sounds
 import 'package:shared_preferences/shared_preferences.dart'; // For accessing SharedPreferences
 
 // --- Mock UserDetail (updated to accept real data) ---
-class UserDetail {
-  // Renamed from MockUserDetail
-  final String id; // Changed from _id to id
-  final String name;
-  final int dynamoCoin;
-  final String? countryIcon; // Made nullable as it might be null from prefs
-  final double rating;
-  final String? email;
-  final String? role;
-  final String? mobile;
-  final String? country;
-  final String? token;
-
-  UserDetail({
-    required this.id,
-    required this.name,
-    required this.dynamoCoin,
-    this.countryIcon,
-    required this.rating,
-    this.email,
-    this.role,
-    this.mobile,
-    this.country,
-    this.token,
-  });
-
-  // Factory constructor to create UserDetail from SharedPreferences
-  factory UserDetail.fromSharedPreferences(SharedPreferences prefs) {
-    return UserDetail(
-      id: prefs.getString('_id') ??
-          '', // Provide a default empty string if null
-      name: prefs.getString('name') ?? 'Guest',
-      dynamoCoin: prefs.getInt('dynamoCoin') ?? 0,
-      countryIcon: prefs.getString('countryIcon'),
-      rating: (prefs.getInt('Rating') ?? 0)
-          .toDouble(), // Rating is int in prefs, convert to double
-      email: prefs.getString('email'),
-      role: prefs.getString('role'),
-      mobile: prefs.getString('mobile'),
-      country: prefs.getString('country'),
-      token: prefs.getString('token'),
-    );
-  }
-
-  // Factory constructor for an empty/default user
-  factory UserDetail.empty() {
-    return UserDetail(
-      id: '',
-      name: 'Guest',
-      dynamoCoin: 0,
-      countryIcon: null,
-      rating: 0.0,
-      email: null,
-      role: null,
-      mobile: null,
-      country: null,
-      token: null,
-    );
-  }
-}
 
 void toastInfo(String message) {
   // Replace with your actual toast/snackbar implementation
@@ -72,72 +15,6 @@ void toastInfo(String message) {
   // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
 // -----------------------------------------------------------------------------
-
-enum PieceColor { white, black }
-
-enum PieceType {
-  pawn,
-  rook,
-  knight,
-  bishop,
-  queen,
-  king,
-  missile,
-}
-
-class Position {
-  final int row;
-  final int col;
-
-  Position(this.row, this.col);
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Position &&
-          runtimeType == other.runtimeType &&
-          row == other.row &&
-          col == other.col;
-
-  @override
-  int get hashCode => row.hashCode ^ col.hashCode;
-}
-
-class ChessPiece {
-  final PieceColor color;
-  final PieceType type;
-  final String symbol;
-  final String name;
-
-  // Track movement history
-  final int enPassantUsedCount; // how many times this pawn captured en passant
-  final bool justMovedThreeOrTwoSquares; // if moved 2 or 3 squares last move
-
-  ChessPiece(this.color, this.type)
-      : symbol = _getSymbol(type, color),
-        name = _getName(type),
-        enPassantUsedCount = 0,
-        justMovedThreeOrTwoSquares = false;
-
-  ChessPiece.withHistory({
-    required this.color,
-    required this.type,
-    required this.enPassantUsedCount,
-    required this.justMovedThreeOrTwoSquares,
-  })  : symbol = _getSymbol(type, color),
-        name = _getName(type);
-
-  static String _getSymbol(PieceType type, PieceColor color) {
-    const whitePieces = ['♙', '♖', '♘', '♗', '♕', '♔', '🚀'];
-    const blackPieces = ['♟', '♜', '♞', '♝', '♛', '♚', '🚀'];
-    final index = type.index;
-    return color == PieceColor.white ? whitePieces[index] : blackPieces[index];
-  }
-
-  static String _getName(PieceType type) {
-    return type.toString().split('.').last;
-  }
-}
 
 class ChessBoardScreen extends StatefulWidget {
   const ChessBoardScreen({super.key});
@@ -232,7 +109,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
   void _connectSocket() {
     // Replace with your actual backend URL
-    socket = IO.io('http://dynamo-backend-q1az.onrender.com', <String, dynamic>{
+    socket = IO.io(ApiList.baseUrl, <String, dynamic>{
       'transports': ['websocket', 'polling'],
       'autoConnect': false,
       'reconnection': true,
@@ -323,6 +200,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     });
 
     socket?.on('updatedRoom', (data) {
+      print('Updated Room: $data');
       setState(() {
         roomId = data['_id'];
         players = List<Map<String, dynamic>>.from(data['players']);
@@ -380,8 +258,9 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     socket?.on('playerWon', (data) {
       setState(() {
         winData = data;
-        gameStatus =
-            '${data['playerId'] == _currentUserDetail?.id ? 'You Win!' : 'You Lose!'}';
+        gameStatus = data['playerId'] == _currentUserDetail?.id
+            ? 'You Win!'
+            : 'You Lose!';
         _playGameEndSound(winData?['playerId'] == _currentUserDetail?.id);
       });
     });
@@ -514,7 +393,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     });
 
     socket?.on('errorOccured', (data) {
-      toastInfo('Error: ${data}');
+      toastInfo('Error: $data');
     });
   }
 
@@ -587,7 +466,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
         isTournament ? currentUrl.split("tournament:")[1].split('/')[0] : null;
     final String currentRoomId =
         uniqueID ?? 'randomMultiplayer'; // Default to random
-    final String currentTime = '60'; // Default time for now
+    const String currentTime = '600'; // Default time for now
 
     if (_currentUserDetail!.dynamoCoin > 200) {
       final Map<String, dynamic> joinRoomData = {
@@ -724,7 +603,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
           children: [
             // Top Player Info & Timer
             _buildPlayerInfo(
-                topPlayer, topTimer, playerNextId == topPlayer?['playerId']),
+                topPlayer, topTimer, playerNextId == topPlayer['playerId']),
 
             // The board itself is already within an Expanded, so it will fill available space
             // within the scrollable area.
@@ -812,13 +691,13 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
             // Bottom Player Info & Timer
             _buildPlayerInfo(bottomPlayer, bottomTimer,
-                playerNextId == bottomPlayer?['playerId']),
+                playerNextId == bottomPlayer['playerId']),
 
             // Game Control Buttons
-            _buildGameControls(),
+            // _buildGameControls(),
 
             // Chat Section
-            _buildChatSection(),
+            // _buildChatSection(),
 
             // Confirmation Popups
             _buildConfirmationDialog(
@@ -1125,11 +1004,13 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
   void _handleTap(int row, int col) {
     final piece = board[row][col];
+    print('piece selected ${row} ${col} ${piece?.color}');
 
     // Only allow interaction if it's the current player's turn
     final currentPlayerColor = players.firstWhere(
         (p) => p['playerId'] == _currentUserDetail?.id,
         orElse: () => {'colour': 'w'})['colour'];
+    print(currentPlayerColor);
 
     if (piece != null &&
         ((piece.color == PieceColor.white && currentPlayerColor == 'w') ||
@@ -1147,6 +1028,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       final moveIsValid =
           possibleMoves.any((pos) => pos.row == row && pos.col == col);
       if (moveIsValid) {
+        print('move is valid');
         _movePiece(selectedPosition!.row, selectedPosition!.col, row, col);
       } else {
         // If an invalid move is attempted, deselect the piece
@@ -1227,6 +1109,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
   List<Position> _getPossibleMoves(int row, int col) {
     final piece = board[row][col];
+    print('piece selected _getPossibleMoves ${row} ${col} ${piece?.color}');
     if (piece == null) return [];
     final moves = <Position>[];
     switch (piece.type) {
@@ -1291,8 +1174,10 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
   void _getPawnMoves(int row, int col, PieceColor color, List<Position> moves) {
     final direction = color == PieceColor.white ? -1 : 1;
-
+    print("direction $direction");
     // Normal forward move
+    final mm = _isValidPosition(row + direction, col);
+    print("mm $mm");
     if (_isValidPosition(row + direction, col) &&
         board[row + direction][col] == null) {
       moves.add(Position(row + direction, col));

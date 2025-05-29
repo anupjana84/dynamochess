@@ -1,13 +1,15 @@
 import 'package:dynamochess/screens/chess.dart';
 
-import 'package:dynamochess/screens/dashboard_screen.dart';
 import 'package:dynamochess/screens/login_screen.dart';
 import 'package:dynamochess/screens/off_line_chess.dart';
 import 'package:dynamochess/screens/online_play.dart';
+import 'package:dynamochess/screens/playonline.dart';
+
 import 'package:dynamochess/screens/register_screen.dart';
 import 'package:dynamochess/widgets/bacground.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,7 +19,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<String> poplist = ["Login", "Register"];
+  List<String> poplist = ["Login", "Register", "Logout"];
+
+  Future<bool> hasToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey('token');
+  }
 
   // Define a function for "Play offline"
   void _playOffline() {
@@ -30,6 +37,12 @@ class _HomeScreenState extends State<HomeScreen> {
     //   colorText: Colors.white,
     // );
     Get.to(OffLineChessScreen());
+  }
+
+  static Future<void> _logout() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    // print("All SharedPreferences keys cleared.");
   }
 
   @override
@@ -78,16 +91,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         context,
                         'Play online',
                         Icons.public,
-                        onPressed: () {
-                          Get.to(ChessBoardScreen());
-                          // Add your onPressed logic here
-                          // Get.snackbar(
-                          //   "Play Online",
-                          //   "You have selected Play Online mode!",
-                          //   snackPosition: SnackPosition.BOTTOM,
-                          //   backgroundColor: Colors.green,
-                          //   colorText: Colors.white,
-                          // );
+                        onPressed: () async {
+                          bool isLoggedIn = await hasToken();
+
+                          if (isLoggedIn) {
+                            // Go directly to ChessBoardScreen
+                            Get.to(const ChessBoardScreen());
+                          } else {
+                            // Navigate to Login Screen
+                            Get.to(
+                                const LoginScreen()); // or your login page route
+                          }
                         },
                       ),
                     ]),
@@ -119,13 +133,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         Icons.extension,
                         onPressed: () {
                           // Add your onPressed logic here
-                          Get.snackbar(
-                            "Puzzles",
-                            "You have selected Puzzles mode!",
-                            snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: Colors.green,
-                            colorText: Colors.white,
-                          );
+                          //Get.to(const OnlineChessScreen());
+                          // Get.snackbar(
+                          //   "Puzzles",
+                          //   "You have selected Puzzles mode!",
+                          //   snackPosition: SnackPosition.BOTTOM,
+                          //   backgroundColor: Colors.green,
+                          //   colorText: Colors.white,
+                          // );
                         },
                       ),
                     ]),
@@ -200,8 +215,10 @@ class _HomeScreenState extends State<HomeScreen> {
               onSelected: (value) {
                 if (value == "Login") {
                   Get.to(const LoginScreen());
-                } else {
+                } else if (value == "Register") {
                   Get.to(const RegisterScreen());
+                } else {
+                  _logout();
                 }
               },
               itemBuilder: (context) {

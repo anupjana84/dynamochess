@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+// --- Enums ---
 enum PieceColor { white, black }
 
 enum PieceType {
@@ -12,6 +13,7 @@ enum PieceType {
   missile,
 }
 
+// --- Position Class ---
 class Position {
   final int row;
   final int col;
@@ -28,17 +30,30 @@ class Position {
 
   @override
   int get hashCode => row.hashCode ^ col.hashCode;
+
+  // New getter to convert to algebraic notation
+  String get algebraic {
+    if (row < 0 || row >= 10 || col < 0 || col >= 10) {
+      return 'Invalid'; // Should not happen with valid game logic
+    }
+    // 'a' for col 0, 'b' for col 1, etc.
+    final colChar = String.fromCharCode('a'.codeUnitAt(0) + col);
+    // For a 10x10 board, row 0 (top) is rank 10, row 9 (bottom) is rank 1
+    final rowNum = 10 - row;
+    return '$colChar$rowNum';
+  }
 }
 
+// --- ChessPiece Class ---
 class ChessPiece {
   final PieceColor color;
   final PieceType type;
   final String symbol;
   final String name;
 
-  // Track movement history
-  final int enPassantUsedCount; // how many times this pawn captured en passant
-  final bool justMovedThreeOrTwoSquares; // if moved 2 or 3 squares last move
+  // Track movement history for pawns (en passant)
+  final int enPassantUsedCount;
+  final bool justMovedThreeOrTwoSquares;
 
   ChessPiece(this.color, this.type)
       : symbol = _getSymbol(type, color),
@@ -66,6 +81,17 @@ class ChessPiece {
   }
 }
 
+// --- Move Class ---
+class Move {
+  final Position from;
+  final Position to;
+  final ChessPiece? movedPiece;
+  final ChessPiece? capturedPiece; // To store if a piece was captured
+
+  Move(this.from, this.to, this.movedPiece, this.capturedPiece);
+}
+
+// --- OffLineChessScreen Widget ---
 class OffLineChessScreen extends StatefulWidget {
   @override
   _OffLineChessScreenState createState() => _OffLineChessScreenState();
@@ -79,6 +105,11 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   Position? selectedPosition;
   List<Position> possibleMoves = [];
   String gameStatus = 'White\'s turn';
+
+  // --- Move History related variables ---
+  List<Move> moveHistory = [];
+  int currentMoveIndex = -1; // -1 means no move has been made yet
+  // --- End Move History related variables ---
 
   @override
   void initState() {
@@ -98,26 +129,26 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
 
     // Custom back row with Missiles at positions 3 and 7
     final blackPiecesOrder = [
-      PieceType.rook, // 1st (col 0) noika
-      PieceType.knight, // 2nd (col 1) ghora
-      PieceType.bishop, // 3rd (col 2)gajh
-      PieceType.missile, // 4th (col 3) ✅ missile (special)
-      PieceType.queen, // 5th (col 4) rani
-      PieceType.king, // 6th (col 5) raja
-      PieceType.missile, // 7th (col 6) ✅
-      PieceType.bishop, // 8th (col 7)
-      PieceType.knight, // 9th (col 8)
-      PieceType.rook // 10th (col 9)
+      PieceType.rook,
+      PieceType.knight,
+      PieceType.bishop,
+      PieceType.missile, // 4th (col 3)
+      PieceType.queen,
+      PieceType.king,
+      PieceType.missile, // 7th (col 6)
+      PieceType.bishop,
+      PieceType.knight,
+      PieceType.rook
     ];
 
     final whitePiecesOrder = [
       PieceType.rook,
       PieceType.knight,
       PieceType.bishop,
-      PieceType.missile, // 4th (col 3) ✅
+      PieceType.missile, // 4th (col 3)
       PieceType.king,
       PieceType.queen,
-      PieceType.missile, // 7th (col 6) ✅
+      PieceType.missile, // 7th (col 6)
       PieceType.bishop,
       PieceType.knight,
       PieceType.rook
@@ -139,7 +170,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Dynamic Chess '),
+        title: Text('Dynamic Chess'),
         actions: [
           Padding(
             padding: EdgeInsets.only(right: 20),
@@ -151,80 +182,74 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final boardDimension = constraints.maxWidth < constraints.maxHeight
-              ? constraints.maxWidth
-              : constraints.maxHeight;
+      body: Column(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final boardDimension =
+                    constraints.maxWidth < constraints.maxHeight
+                        ? constraints.maxWidth
+                        : constraints.maxHeight;
 
-          return SizedBox(
-            width: boardDimension,
-            height: boardDimension,
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: boardSize,
-              ),
-              itemCount: boardSize * boardSize,
-              itemBuilder: (context, index) {
-                final row = index ~/ boardSize;
-                final col = index % boardSize;
-                final piece = board[row][col];
-                final isSelected = selectedPosition?.row == row &&
-                    selectedPosition?.col == col;
-                final isPossibleMove = possibleMoves
-                    .any((pos) => pos.row == row && pos.col == col);
+                return SizedBox(
+                  width: boardDimension,
+                  height: boardDimension,
+                  child: GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: boardSize,
+                    ),
+                    itemCount: boardSize * boardSize,
+                    itemBuilder: (context, index) {
+                      final row = index ~/ boardSize;
+                      final col = index % boardSize;
+                      final piece = board[row][col];
+                      final isSelected = selectedPosition?.row == row &&
+                          selectedPosition?.col == col;
+                      final isPossibleMove = possibleMoves
+                          .any((pos) => pos.row == row && pos.col == col);
 
-                return GestureDetector(
-                  onTap: () => _handleTap(row, col),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color:
-                          _getSquareColor(row, col, isSelected, isPossibleMove),
-                      border: Border.all(color: Colors.black54, width: 0.5),
-                    ),
-                    child: Center(
-                      child: piece != null
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // Text(
-                                //   piece.symbol,
-                                //   style: TextStyle(
-                                //     fontSize: 20,
-                                //     color: piece.color == PieceColor.white
-                                //         ? Colors.white
-                                //         : Colors.black,
-                                //   ),
-                                // ),
-                                Image.asset(
-                                  _getPieceImageAsset(piece),
-                                  width: 30,
-                                  height: 30,
-                                ),
-                                // if (piece.type == PieceType.missile)
-                                //   Text(
-                                //     'Missile',
-                                //     style: TextStyle(
-                                //       fontSize: 7,
-                                //       color: piece.color == PieceColor.white
-                                //           ? Colors.white
-                                //           : Colors.black,
-                                //     ),
-                                //   ),
-                              ],
-                            )
-                          : null,
-                    ),
+                      return GestureDetector(
+                        onTap: () => _handleTap(row, col),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _getSquareColor(
+                                row, col, isSelected, isPossibleMove),
+                            border:
+                                Border.all(color: Colors.black54, width: 0.5),
+                          ),
+                          child: Center(
+                            child: piece != null
+                                ? Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        _getPieceImageAsset(piece),
+                                        width: 30,
+                                        height: 30,
+                                      ),
+                                    ],
+                                  )
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 );
               },
             ),
-          );
-        },
+          ),
+          // --- Move History UI ---
+          _buildMoveHistory(),
+          // --- End Move History UI ---
+        ],
       ),
     );
   }
 
+  // --- Helper for Piece Image Assets ---
   String _getPieceImageAsset(ChessPiece piece) {
     String colorString = piece.color == PieceColor.white ? 'white' : 'black';
     String type = '';
@@ -257,6 +282,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     return assetPath;
   }
 
+  // --- Helper for Square Colors ---
   Color _getSquareColor(
       int row, int col, bool isSelected, bool isPossibleMove) {
     if (isSelected) return Colors.blue[400]!;
@@ -264,8 +290,19 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     return (row + col) % 2 == 0 ? Colors.yellow : Colors.green;
   }
 
+  // --- Handle Tap on a Square ---
   void _handleTap(int row, int col) {
     final piece = board[row][col];
+
+    // If we are currently viewing a past move, we need to return to the present
+    // before allowing new moves.
+    if (currentMoveIndex != moveHistory.length - 1) {
+      setState(() {
+        gameStatus = 'Return to present to make a new move.';
+      });
+      return;
+    }
+
     if (piece != null && piece.color == currentPlayer) {
       setState(() {
         selectedPosition = Position(row, col);
@@ -281,10 +318,17 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
+  // --- Move Piece Logic ---
   void _movePiece(int fromRow, int fromCol, int toRow, int toCol) {
     setState(() {
       final movingPiece = board[fromRow][fromCol];
       final capturedPiece = board[toRow][toCol];
+
+      // Record the move before making it on the board
+      moveHistory.add(Move(Position(fromRow, fromCol), Position(toRow, toCol),
+          movingPiece, capturedPiece));
+      currentMoveIndex =
+          moveHistory.length - 1; // Update currentMoveIndex to the latest move
 
       if (movingPiece != null && movingPiece.type == PieceType.pawn) {
         final distance = (fromRow - toRow).abs();
@@ -310,6 +354,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     });
   }
 
+  // --- Pawn Promotion Check ---
   void _checkPawnPromotion(int row, int col) {
     final piece = board[row][col];
     if (piece?.type == PieceType.pawn && (row == 0 || row == boardSize - 1)) {
@@ -318,6 +363,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
+  // --- Get Possible Moves for a Piece ---
   List<Position> _getPossibleMoves(int row, int col) {
     final piece = board[row][col];
     if (piece == null) return [];
@@ -348,6 +394,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     return moves;
   }
 
+  // --- Missile Moves ---
   void _getMissileMoves(
       int row, int col, PieceColor color, List<Position> moves) {
     // Bishop-style diagonal sliding
@@ -382,6 +429,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
+  // --- Pawn Moves ---
   void _getPawnMoves(int row, int col, PieceColor color, List<Position> moves) {
     final direction = color == PieceColor.white ? -1 : 1;
 
@@ -446,6 +494,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
+  // --- Rook Moves ---
   void _getRookMoves(int row, int col, PieceColor color, List<Position> moves) {
     const directions = [
       [1, 0],
@@ -456,6 +505,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     _getSlidingMoves(row, col, color, directions, moves);
   }
 
+  // --- Knight Moves ---
   void _getKnightMoves(
       int row, int col, PieceColor color, List<Position> moves) {
     const knightMoves = [
@@ -480,6 +530,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
+  // --- Bishop Moves ---
   void _getBishopMoves(
       int row, int col, PieceColor color, List<Position> moves) {
     const directions = [
@@ -491,6 +542,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     _getSlidingMoves(row, col, color, directions, moves);
   }
 
+  // --- Queen Moves ---
   void _getQueenMoves(
       int row, int col, PieceColor color, List<Position> moves) {
     const directions = [
@@ -506,6 +558,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     _getSlidingMoves(row, col, color, directions, moves);
   }
 
+  // --- King Moves ---
   void _getKingMoves(int row, int col, PieceColor color, List<Position> moves) {
     for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
       for (int colOffset = -1; colOffset <= 1; colOffset++) {
@@ -522,6 +575,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
+  // --- Sliding Moves Helper (for Rook, Bishop, Queen, Missile) ---
   void _getSlidingMoves(int row, int col, PieceColor color,
       List<List<int>> directions, List<Position> moves) {
     for (final direction in directions) {
@@ -542,10 +596,12 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
+  // --- Check if Position is Valid on Board ---
   bool _isValidPosition(int row, int col) {
     return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
   }
 
+  // --- Reset Game ---
   void _resetGame() {
     setState(() {
       board = List.generate(boardSize, (i) => List.filled(boardSize, null));
@@ -554,6 +610,136 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       selectedPosition = null;
       possibleMoves = [];
       gameStatus = 'White\'s turn';
+      moveHistory.clear();
+      currentMoveIndex = -1;
     });
+  }
+
+  // --- Move History UI ---
+  Widget _buildMoveHistory() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        children: [
+          Text(
+            'Move History:',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(
+            height: 180, // Adjust height as needed
+            child: ListView.builder(
+              itemCount: moveHistory.length,
+              itemBuilder: (context, index) {
+                final move = moveHistory[index];
+                final isCurrentMove = index == currentMoveIndex;
+                return GestureDetector(
+                  onTap: () => _goToMove(index),
+                  child: Container(
+                    color: isCurrentMove
+                        ? Colors.blue.withOpacity(0.3)
+                        : Colors.transparent,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    child: Text(
+                      '${index + 1}. ${move.movedPiece?.name} ${move.movedPiece?.symbol}   ${move.to.algebraic}',
+                      style: TextStyle(
+                        fontWeight:
+                            isCurrentMove ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: currentMoveIndex > 0 ? _goToPreviousMove : null,
+                child: Text('Previous'),
+              ),
+              SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: currentMoveIndex < moveHistory.length - 1
+                    ? _goToNextMove
+                    : null,
+                child: Text('Next'),
+              ),
+              SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: currentMoveIndex != moveHistory.length - 1 &&
+                        moveHistory.isNotEmpty
+                    ? _goToLastMove
+                    : null,
+                child: Text('Last Move'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Navigate to Previous Move ---
+  void _goToPreviousMove() {
+    if (currentMoveIndex > 0) {
+      setState(() {
+        final lastMove = moveHistory[currentMoveIndex];
+        // Undo the move
+        board[lastMove.from.row][lastMove.from.col] = lastMove.movedPiece;
+        board[lastMove.to.row][lastMove.to.col] = lastMove.capturedPiece;
+        currentMoveIndex--;
+        // Toggle player back
+        currentPlayer = currentPlayer == PieceColor.white
+            ? PieceColor.black
+            : PieceColor.white;
+        gameStatus = 'Viewing past move.';
+      });
+    }
+  }
+
+  // --- Navigate to Next Move ---
+  void _goToNextMove() {
+    if (currentMoveIndex < moveHistory.length - 1) {
+      setState(() {
+        currentMoveIndex++;
+        final nextMove = moveHistory[currentMoveIndex];
+        // Redo the move
+        board[nextMove.to.row][nextMove.to.col] = nextMove.movedPiece;
+        board[nextMove.from.row][nextMove.from.col] = null;
+        // Toggle player forward
+        currentPlayer = currentPlayer == PieceColor.white
+            ? PieceColor.black
+            : PieceColor.white;
+        gameStatus = 'Viewing past move.';
+      });
+    } else {
+      // If we are at the last move, then we are at the current state of the game
+      setState(() {
+        gameStatus = currentPlayer == PieceColor.white
+            ? 'White\'s turn'
+            : 'Black\'s turn';
+      });
+    }
+  }
+
+  // --- Navigate to a Specific Move by Index ---
+  void _goToMove(int index) {
+    setState(() {
+      // If going to a move before the current index, undo moves
+      while (currentMoveIndex > index) {
+        _goToPreviousMove(); // This will decrement currentMoveIndex
+      }
+      // If going to a move after the current index, redo moves
+      while (currentMoveIndex < index) {
+        _goToNextMove(); // This will increment currentMoveIndex
+      }
+    });
+  }
+
+  // --- Navigate to the Last Move (Current Game State) ---
+  void _goToLastMove() {
+    _goToMove(moveHistory.length - 1);
   }
 }

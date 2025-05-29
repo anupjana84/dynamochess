@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "dynamochess",
+      "request": "launch",
+      "type": "dart"
+    },
+    {
+      "name": "dynamochess (profile mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile"
+    },
+    {
+      "name": "dynamochess (release mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release"
+    },
+    {
+      "name": "iPhone 16 Pro",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "37A05E43-0BD0-40E6-9E79-723F448690B6"
+    },
+    {
+      "name": "Android",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5554"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "All devices",
+      "configurations": ["iPhone 16 Pro", "Android"]
+    }
+  ]
+}
