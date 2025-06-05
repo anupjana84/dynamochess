@@ -43,7 +43,7 @@ class ChessPiece {
 class OnlineChessScreen extends StatefulWidget {
   final String roomId;
 
-  const OnlineChessScreen({Key? key, required this.roomId}) : super(key: key);
+  const OnlineChessScreen({super.key, required this.roomId});
 
   @override
   _OnlineChessScreenState createState() => _OnlineChessScreenState();
@@ -193,12 +193,12 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
           children: [
             Text(
               gameStatus,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Expanded(
               child: GridView.builder(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: boardSize,
                   childAspectRatio: 1.0,
                 ),

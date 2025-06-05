@@ -71,10 +71,19 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    _initializeBoard(); // Initialize local board first
-    // Load user data from SharedPreferences
-    _connectSocket();
+    _loadUserData().then((_) {
+      if (_currentUserDetail != null) {
+        _initializeBoard();
+        _connectSocket();
+        setState(() {
+          gameStatus = 'Initializing game...';
+        });
+      } else {
+        setState(() {
+          gameStatus = 'Please log in to play';
+        });
+      }
+    });
   }
 
   @override
