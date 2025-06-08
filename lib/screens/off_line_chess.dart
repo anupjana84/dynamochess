@@ -1,6 +1,7 @@
 import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:audioplayers/audioplayers.dart';
 
 // --- Enums ---
 enum PieceColor { white, black }
@@ -97,6 +98,7 @@ class OffLineChessScreen extends StatefulWidget {
 }
 
 class _OffLineChessScreenState extends State<OffLineChessScreen> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
   static const int boardSize = 10;
   List<List<ChessPiece?>> board =
       List.generate(boardSize, (i) => List.filled(boardSize, null));
@@ -205,12 +207,12 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
                 style: const TextStyle(color: Colors.white),
               ),
               IconButton(
-                icon: const Icon(
-                  Icons.refresh,
-                  color: Colors.white,
-                ),
-                onPressed: _resetGame,
-              ),
+                  icon: const Icon(
+                    Icons.refresh,
+                    color: Colors.white,
+                  ),
+                  onPressed: _playMoveSound // _resetGame,
+                  ),
             ],
           )
         ],
@@ -319,7 +321,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     if (piece?.type == PieceType.king &&
         piece?.color == currentPlayer &&
         _isKingInCheck(piece!.color)) {
-      return Colors.red.withOpacity(0.5); // Red circle background
+      return Colors.red; // Red circle background
     }
 
     return (row + col) % 2 == 0 ? Colors.yellow : Colors.green;
@@ -382,6 +384,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       _checkPawnPromotion(toRow, toCol);
       _checkMissileCaptureWin();
       _checkMissileMate();
+      _playMoveSound();
     });
   }
 
@@ -891,7 +894,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
         if (piece != null && piece.color != color) {
           final moves = _getPossibleMoves(row, col);
           if (moves.any(
-              (move) => move.row == kingPos!.row && move.col == kingPos!.col)) {
+              (move) => move.row == kingPos!.row && move.col == kingPos.col)) {
             return true;
           }
         }
@@ -906,5 +909,24 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     return piece?.type == PieceType.king &&
         piece?.color == currentPlayer &&
         _isKingInCheck(piece!.color);
+  }
+
+  void _playMoveSound() async {
+    try {
+      await _audioPlayer.play(AssetSource('sound/move.mp3'));
+      // if (result == 1) {
+      //   print("Sound played successfully");
+      // } else {
+      //   print("Failed to play sound");
+      // }
+    } catch (e) {
+      print("Error playing sound: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
   }
 }
