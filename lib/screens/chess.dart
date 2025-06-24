@@ -7,6 +7,10 @@ import 'package:audioplayers/audioplayers.dart'; // For playing sounds
 import 'package:shared_preferences/shared_preferences.dart'; // For accessing SharedPreferences
 
 // --- Mock UserDetail (updated to accept real data) ---
+// Assuming UserDetail is a class that can be initialized from SharedPreferences
+// Example (adjust based on your actual UserDetail structure):
+
+// -----------------------------------------------------------------------------
 
 void toastInfo(String message) {
   // Replace with your actual toast/snackbar implementation
@@ -72,7 +76,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
   void initState() {
     super.initState();
     _loadUserData().then((_) {
-      if (_currentUserDetail != null) {
+      if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
         _initializeBoard();
         _connectSocket();
         setState(() {
@@ -81,6 +85,8 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       } else {
         setState(() {
           gameStatus = 'Please log in to play';
+          toastInfo("User not logged in. Please log in to play online.");
+          // You might want to navigate to a login screen here
         });
       }
     });
@@ -100,11 +106,6 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _currentUserDetail = UserDetail.fromSharedPreferences(prefs);
-      // Ensure user ID is available before trying to join a room
-      if (_currentUserDetail?.id.isEmpty ?? true) {
-        toastInfo("User not logged in. Please log in to play online.");
-        // Consider navigating to login screen here
-      }
     });
   }
 
@@ -131,6 +132,8 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       print('Connected to Socket.IO');
       if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
         _joinRoom();
+      } else {
+        toastInfo("User not logged in. Cannot join room.");
       }
     });
 
@@ -160,20 +163,24 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
         // Set the current player ID based on who is 'w' or 'b'
         // This logic needs to match the backend's assignment of 'w' and 'b'
         if (players.isNotEmpty && _currentUserDetail != null) {
-          final currentPlayerColor = players.firstWhere(
+          // Here, we assume 'players' list is populated correctly and contains the color for the current user
+          final currentPlayerAssignedColor = players.firstWhere(
               (p) => p['playerId'] == _currentUserDetail!.id,
               orElse: () => {'colour': 'w'})['colour'];
 
           // The backend sends the board from white's perspective.
           // If current user is black, reverse the board for display.
-          if (currentPlayerColor == 'b') {
+          if (currentPlayerAssignedColor == 'b') {
             board = _convertBackendBoard(initialBoard, reverse: true);
           } else {
             board = _convertBackendBoard(initialBoard, reverse: false);
           }
         }
-        playerNextId =
-            players.isNotEmpty ? players[0]['playerId'] : ''; // White starts
+        // Initialize playerNextId and playerNextTurnColor based on the start of the game
+        // Usually, white starts, so 'w' and the ID of the white player
+        playerNextId = players.firstWhere((p) => p['colour'] == 'w',
+                orElse: () => {})['playerId'] ??
+            '';
         playerNextTurnColor = 'w';
       });
     });
@@ -469,12 +476,16 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       return;
     }
 
-    final String currentUrl = Uri.base.toString();
+    // You need to decide how roomId is determined.
+    // For a random multiplayer game, you might not send a specific joinId.
+    // For joining an existing game or tournament, you'd get this from navigation arguments.
+    final String currentUrl =
+        Uri.base.toString(); // This works for web, less for mobile
     final bool isTournament = currentUrl.contains("tournament:");
     final String? uniqueID =
         isTournament ? currentUrl.split("tournament:")[1].split('/')[0] : null;
-    final String currentRoomId =
-        uniqueID ?? 'randomMultiplayer'; // Default to random
+    final String currentRoomId = uniqueID ??
+        'randomMultiplayer'; // Default to random or specific ID from arguments
     const String currentTime = '600'; // Default time for now
 
     if (_currentUserDetail!.dynamoCoin > 200) {
@@ -501,6 +512,9 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       } else {
         socket?.emit('joinById', joinRoomData);
       }
+      setState(() {
+        isPopupDisabled = false; // Show the "Please wait" popup
+      });
     } else {
       toastInfo("Minimum point 2000 is not available");
       // Navigate away or show error
@@ -598,7 +612,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 20),
-            child: Center(child: Text(gameStatus)),
+            child: Center(child: Text("gameStatus")),
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -703,10 +717,10 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
                 playerNextId == bottomPlayer['playerId']),
 
             // Game Control Buttons
-            // _buildGameControls(),
+            _buildGameControls(),
 
             // Chat Section
-            // _buildChatSection(),
+            _buildChatSection(),
 
             // Confirmation Popups
             _buildConfirmationDialog(
@@ -859,8 +873,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
                   child: const Text('Rematch'),
                 ),
                 ElevatedButton(
-                  onPressed: () => {},
-                  //  NewGame(),
+                  onPressed: () => NewGame(),
                   child: const Text('New Opponent'),
                 ),
                 // If it's a tournament, you might have a dashboard button
@@ -934,9 +947,9 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
+              IconButton(
+                icon: const Icon(Icons.send),
                 onPressed: isMessageDisabled ? null : () => handleSendMessage(),
-                child: const Text('Send'),
               ),
             ],
           ),
@@ -945,36 +958,32 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     );
   }
 
-  Widget _buildConfirmationDialog(BuildContext context, bool showDialogFlag,
-      String message, VoidCallback onAccept, VoidCallback onCancel) {
-    if (!showDialogFlag) return const SizedBox.shrink();
+  // --- Game Logic (Modified for online play) ---
 
-    return AlertDialog(
-      title: const Text('Confirmation'),
-      content: Text(message),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () {
-            onAccept();
-            Navigator.of(context).pop();
-          },
-          child: const Text('Accept'),
-        ),
-        TextButton(
-          onPressed: () {
-            onCancel();
-            Navigator.of(context).pop();
-          },
-          child: const Text('Cancel'),
-        ),
-      ],
-    );
+  Color _getSquareColor(
+      int row, int col, bool isSelected, bool isPossibleMove) {
+    if (isSelected) return Colors.blue[400]!;
+    if (isPossibleMove) return Colors.blue[200]!;
+
+    // Check for check status (client-side visual, server is canonical)
+    // Use the playerNextTurnColor for the current active player's color
+    final PieceColor? currentPlayerDisplayColor = playerNextTurnColor == 'w'
+        ? PieceColor.white
+        : (playerNextTurnColor == 'b' ? PieceColor.black : null);
+
+    final piece = board[row][col];
+    if (piece?.type == PieceType.king &&
+        piece?.color ==
+            currentPlayerDisplayColor && // Check for the color of the king that is in check
+        _isKingInCheck(piece!.color)) {
+      return Colors.red;
+    }
+    return (row + col) % 2 == 0 ? const Color(0xFFDCDA5C) : Colors.green;
   }
 
   String _getPieceImageAsset(ChessPiece piece) {
     String colorString = piece.color == PieceColor.white ? 'white' : 'black';
     String type = '';
-
     switch (piece.type) {
       case PieceType.pawn:
         type = 'pawn';
@@ -998,128 +1007,298 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
         type = 'missile';
         break;
     }
-    String assetPath = 'assets/images/${colorString}_$type.png';
-    // Ensure you have these assets in your pubspec.yaml and project structure
-    // Example: assets/images/white_pawn.png, assets/images/black_rook.png etc.
-    return assetPath;
-  }
-
-  Color _getSquareColor(
-      int row, int col, bool isSelected, bool isPossibleMove) {
-    if (isSelected) return Colors.blue[400]!;
-    if (isPossibleMove) return Colors.blue[200]!;
-    return (row + col) % 2 == 0 ? Colors.yellow : Colors.green;
+    return 'assets/images/${colorString}_$type.png';
   }
 
   void _handleTap(int row, int col) {
+    // Only allow moves if game has started and it's this player's turn
+    if (!startGame ||
+        _currentUserDetail == null ||
+        _currentUserDetail!.id != playerNextId) {
+      toastInfo(_currentUserDetail?.id != playerNextId
+          ? "It's not your turn!"
+          : "Game has not started yet.");
+      return;
+    }
+
+    // Determine the color of the current user based on the 'players' list
+    // This is the color of the pieces they are controlling.
+    final PieceColor? currentUserControlledColor = players.firstWhere(
+                (p) => p['playerId'] == _currentUserDetail!.id,
+                orElse: () => {'colour': 'w'})['colour'] ==
+            'w'
+        ? PieceColor.white
+        : PieceColor.black;
+
     final piece = board[row][col];
-    print('piece selected ${row} ${col} ${piece?.color}');
 
-    // Only allow interaction if it's the current player's turn
-    final currentPlayerColor = players.firstWhere(
-        (p) => p['playerId'] == _currentUserDetail?.id,
-        orElse: () => {'colour': 'w'})['colour'];
-    print(currentPlayerColor);
-
-    if (piece != null &&
-        ((piece.color == PieceColor.white && currentPlayerColor == 'w') ||
-            (piece.color == PieceColor.black && currentPlayerColor == 'b')) &&
-        piece.color ==
-            (playerNextTurnColor == 'w'
-                ? PieceColor.white
-                : PieceColor.black)) {
-      setState(() {
-        selectedPosition = Position(row, col);
-        possibleMoves = _getPossibleMoves(row, col);
-        gameStatus = 'Selected: ${piece.name}';
-      });
-    } else if (selectedPosition != null) {
+    if (selectedPosition == null) {
+      // First tap: select a piece
+      if (piece != null && piece.color == currentUserControlledColor) {
+        setState(() {
+          selectedPosition = Position(row, col);
+          possibleMoves = _getValidMoves(
+              row, col); // Get valid moves for client-side display
+          gameStatus = 'Selected: ${piece.name}';
+        });
+      } else if (piece != null && piece.color != currentUserControlledColor) {
+        toastInfo("You can only move your own pieces.");
+      }
+    } else {
+      // Second tap: move the selected piece
       final moveIsValid =
           possibleMoves.any((pos) => pos.row == row && pos.col == col);
       if (moveIsValid) {
-        print('move is valid');
-        _movePiece(selectedPosition!.row, selectedPosition!.col, row, col);
-      } else {
-        // If an invalid move is attempted, deselect the piece
+        _sendMoveToServer(
+            selectedPosition!.row, selectedPosition!.col, row, col);
+        // Clear selection immediately after sending the move
         setState(() {
           selectedPosition = null;
           possibleMoves = [];
+        });
+      } else {
+        // Tapped an invalid square or the same piece again
+        setState(() {
+          selectedPosition = null;
+          possibleMoves = [];
+          gameStatus =
+              'Invalid move. Select your piece or a valid destination.';
         });
       }
     }
   }
 
-  void _movePiece(int fromRow, int fromCol, int toRow, int toCol) {
-    setState(() {
-      final movingPiece = board[fromRow][fromCol];
-      final capturedPiece = board[toRow][toCol];
+  void _sendMoveToServer(int fromRow, int fromCol, int toRow, int toCol) {
+    final movingPiece = board[fromRow][fromCol];
+    if (movingPiece == null)
+      return; // Should not happen if _handleTap is correct
 
-      // Store current board state for sending to backend
-      List<List<String>> currentBoardState =
-          List.generate(boardSize, (r) => List.filled(boardSize, ''));
-      for (int r = 0; r < boardSize; r++) {
-        for (int c = 0; c < boardSize; c++) {
-          final p = board[r][c];
-          if (p != null) {
-            currentBoardState[r][c] =
-                '${p.color == PieceColor.white ? 'w' : 'b'}${p.type.toString().substring(p.type.toString().indexOf('.') + 1)[0]}';
-          }
-        }
-      }
-
-      // Update local board state
-      if (movingPiece != null && movingPiece.type == PieceType.pawn) {
-        final distance = (fromRow - toRow).abs();
-        final justMovedTwoOrThree = distance == 2 || distance == 3;
-
-        board[toRow][toCol] = ChessPiece.withHistory(
-          color: movingPiece.color,
-          type: movingPiece.type,
-          enPassantUsedCount: movingPiece.enPassantUsedCount,
-          justMovedThreeOrTwoSquares: justMovedTwoOrThree,
-        );
-      } else {
-        board[toRow][toCol] = movingPiece;
-      }
-      board[fromRow][fromCol] = null;
-
-      // Generate simple algebraic notation for the move
-      String moveNotation =
-          '${movingPiece!.symbol}${String.fromCharCode(fromCol + 97)}${boardSize - fromRow}';
-      if (capturedPiece != null) {
-        moveNotation += 'x';
-      }
-      moveNotation += '${String.fromCharCode(toCol + 97)}${boardSize - toRow}';
-
-      // Emit boardUpdate to backend
-      socket?.emit('boardUpdate', {
-        'roomId': roomId,
-        'boardData': {
-          'newPosition': currentBoardState
-        }, // Send the string representation
-        'playerId': _currentUserDetail!.id,
-        'move': moveNotation,
-      });
-
-      selectedPosition = null;
-      possibleMoves = [];
-      // Current player turn is managed by the backend via 'nextPlayerTurn' event
-      _checkPawnPromotion(toRow, toCol);
+    socket?.emit('move', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail!.id,
+      'oldX': fromRow,
+      'oldY': fromCol,
+      'newX': toRow,
+      'newY': toCol,
+      'colour': movingPiece.color == PieceColor.white ? 'w' : 'b',
+      'currentTimer': _currentUserDetail!.id ==
+              players.firstWhere(
+                  (p) => p['playerId'] == _currentUserDetail!.id)['playerId']
+          ? timer1 // Assuming timer1 is current user's timer
+          : timer2, // Assuming timer2 is opponent's timer
     });
+
+    _playMoveSound();
   }
 
-  void _checkPawnPromotion(int row, int col) {
-    final piece = board[row][col];
-    if (piece?.type == PieceType.pawn && (row == 0 || row == boardSize - 1)) {
-      board[row][col] = ChessPiece(piece!.color, PieceType.queen);
-      gameStatus = 'Pawn promoted to Queen!';
+  void _playMoveSound() async {
+    try {
+      await _audioPlayer.play(AssetSource('sound/move.mp3'));
+    } catch (e) {
+      print("Error playing sound: $e");
     }
   }
 
+  void _playGameEndSound(bool? isWinner) async {
+    try {
+      if (isWinner == true) {
+        await _audioPlayer.play(AssetSource('sound/win_sound.mp3'));
+      } else if (isWinner == false) {
+        await _audioPlayer.play(AssetSource('sound/lose_sound.mp3'));
+      } else {
+        // Draw sound
+        await _audioPlayer.play(AssetSource('sound/draw_sound.mp3'));
+      }
+    } catch (e) {
+      print("Error playing game end sound: $e");
+    }
+  }
+
+  // --- Game Control Methods (emitting to server) ---
+
+  void abortGame() {
+    socket?.emit('abortGame', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+    });
+    setState(() => showLeaveConfirmation = false);
+  }
+
+  void requestDraw() {
+    socket?.emit('Draw', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+    });
+  }
+
+  void HandleDraw() {
+    socket?.emit('drawAccepted', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+      'DrawStatus': true,
+    });
+    setState(() => showDrawConfirmation = false);
+  }
+
+  void CancelDraw() {
+    socket?.emit('drawAccepted', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+      'DrawStatus': false,
+    });
+    setState(() => showDrawConfirmation = false);
+  }
+
+  void Handlethreefold() {
+    socket?.emit('threefoldAccepted', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+      'threefoldStatus': true,
+    });
+    setState(() => showThreefoldConfirmation = false);
+  }
+
+  void HandleRematch() {
+    socket?.emit('rematchRequest', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+    });
+  }
+
+  void HandleRematchAccept() {
+    socket?.emit('rematchResponse', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+      'rematchResponse': true,
+    });
+    setState(() => showRematchConfirmation = false);
+  }
+
+  void CancelRematch() {
+    socket?.emit('rematchResponse', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+      'rematchResponse': false,
+    });
+    setState(() => showRematchConfirmation = false);
+  }
+
+  void HandleTackback() {
+    socket?.emit('takeBack', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+    });
+  }
+
+  void HandleTackbackAccept() {
+    socket?.emit('takeBackAccepted', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+      'takeBackStatus': true,
+    });
+    setState(() => showTakebackConfirmation = false);
+  }
+
+  void CancelTackback() {
+    socket?.emit('takeBackAccepted', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+      'takeBackStatus': false,
+    });
+    setState(() => showTakebackConfirmation = false);
+  }
+
+  void handleLeaveRoom() {
+    socket?.emit('leaveRoom', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+    });
+    setState(() => showLeaveConfirmation = false);
+    Navigator.pop(context); // Go back after leaving
+  }
+
+  void NewGame() {
+    // This implies starting a brand new game, possibly finding a new opponent
+    _resetGame();
+    _joinRoom(); // Attempt to join a new random room
+  }
+
+  void handleSendMessage() {
+    if (messageController.text.trim().isNotEmpty) {
+      socket?.emit('send_message', {
+        'roomId': roomId,
+        'playerId': _currentUserDetail?.id,
+        'message': messageController.text.trim(),
+      });
+      messageController.clear();
+    }
+  }
+
+  void _resetGame() {
+    setState(() {
+      _initializeBoard();
+      currentPlayer = PieceColor.white;
+      selectedPosition = null;
+      possibleMoves = [];
+      gameStatus = 'Initializing game...';
+      roomId = null;
+      startGame = false;
+      timer1 = '00:00';
+      timer2 = '00:00';
+      players = [];
+      playerNextTurnColor = '';
+      playerNextId = '';
+      winData = null;
+      drawMessage = null;
+      drawStatus = false;
+      threefoldMessage = null;
+      threefoldStatus = false;
+      rematchRequested = false;
+      takebackRequested = false;
+      moveList = [];
+      chatMessages = [];
+      isMessageDisabled = false;
+      isPopupDisabled = false; // Show popup again for new game
+      newGameTriggered = false;
+      isGameAborted = false;
+      isRoomLeft = false;
+      showLeaveConfirmation = false;
+      showRematchConfirmation = false;
+      showTakebackConfirmation = false;
+      showDrawConfirmation = false;
+      showThreefoldConfirmation = false;
+      timerIs60 = false;
+    });
+  }
+
+  // --- Confirmation Dialog ---
+  Widget _buildConfirmationDialog(BuildContext context, bool showDialog,
+      String message, VoidCallback onAccept, VoidCallback onCancel) {
+    if (!showDialog) return const SizedBox.shrink();
+    return AlertDialog(
+      title: const Text('Confirmation'),
+      content: Text(message),
+      actions: <Widget>[
+        TextButton(
+          onPressed: onAccept,
+          child: const Text('Yes'),
+        ),
+        TextButton(
+          onPressed: onCancel,
+          child: const Text('No'),
+        ),
+      ],
+    );
+  }
+
+  // --- Piece Movement and Validation (Client-side for UI only) ---
+  // The server remains the ultimate authority for move validation.
+  // These functions are for displaying possible moves and ensuring valid client-side input.
+
   List<Position> _getPossibleMoves(int row, int col) {
     final piece = board[row][col];
-    print('piece selected _getPossibleMoves ${row} ${col} ${piece?.color}');
     if (piece == null) return [];
+
     final moves = <Position>[];
     switch (piece.type) {
       case PieceType.pawn:
@@ -1147,9 +1326,33 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     return moves;
   }
 
+  List<Position> _getValidMoves(int row, int col) {
+    final piece = board[row][col];
+    if (piece == null) return [];
+
+    final rawMoves = _getPossibleMoves(row, col);
+    final validMoves = <Position>[];
+
+    for (final move in rawMoves) {
+      // Simulate the move locally to check for self-check
+      final ChessPiece? originalPieceAtDest = board[move.row][move.col];
+      board[move.row][move.col] = piece;
+      board[row][col] = null;
+
+      if (!_isKingInCheck(piece.color)) {
+        validMoves.add(move);
+      }
+
+      // Revert the simulated move
+      board[row][col] = piece;
+      board[move.row][move.col] = originalPieceAtDest;
+    }
+
+    return validMoves;
+  }
+
   void _getMissileMoves(
       int row, int col, PieceColor color, List<Position> moves) {
-    // Bishop-style diagonal sliding
     const bishopDirections = [
       [1, 1],
       [1, -1],
@@ -1158,7 +1361,6 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     ];
     _getSlidingMoves(row, col, color, bishopDirections, moves);
 
-    // Knight-style L-shaped jumps
     const knightMoves = [
       [2, 1],
       [2, -1],
@@ -1169,6 +1371,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       [-1, 2],
       [-1, -2]
     ];
+
     for (final move in knightMoves) {
       final newRow = row + move[0];
       final newCol = col + move[1];
@@ -1183,40 +1386,33 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
 
   void _getPawnMoves(int row, int col, PieceColor color, List<Position> moves) {
     final direction = color == PieceColor.white ? -1 : 1;
-    print("direction $direction");
-    // Normal forward move
-    final mm = _isValidPosition(row + direction, col);
-    print("mm $mm");
+    final startRow = color == PieceColor.white ? boardSize - 2 : 1;
+
+    // Single square move
     if (_isValidPosition(row + direction, col) &&
         board[row + direction][col] == null) {
       moves.add(Position(row + direction, col));
 
-      // Double or triple move allowed?
-      final bool isStartingWhite = row == boardSize - 2 || row == boardSize - 3;
-      final bool isStartingBlack = row == 1 || row == 2;
+      // Double square move from starting position
+      if (row == startRow &&
+          _isValidPosition(row + 2 * direction, col) &&
+          board[row + 2 * direction][col] == null) {
+        moves.add(Position(row + 2 * direction, col));
+      }
 
-      if ((color == PieceColor.white && isStartingWhite) ||
-          (color == PieceColor.black && isStartingBlack)) {
-        // 2-square move
-        if (_isValidPosition(row + 2 * direction, col) &&
-            board[row + 2 * direction][col] == null) {
-          moves.add(Position(row + 2 * direction, col));
-        }
-
-        // 3-square move
-        if (_isValidPosition(row + 3 * direction, col) &&
-            board[row + 3 * direction][col] == null) {
-          moves.add(Position(row + 3 * direction, col));
-        }
+      // Triple square move (Dynamo Chess specific)
+      if (row == startRow &&
+          _isValidPosition(row + 3 * direction, col) &&
+          board[row + 3 * direction][col] == null &&
+          board[row + 2 * direction][col] == null) {
+        moves.add(Position(row + 3 * direction, col));
       }
     }
 
-    // Capture moves
+    // Captures
     for (var colOffset in [-1, 1]) {
       final newCol = col + colOffset;
-      if (newCol >= 0 &&
-          newCol < boardSize &&
-          _isValidPosition(row + direction, newCol)) {
+      if (_isValidPosition(row + direction, newCol)) {
         final target = board[row + direction][newCol];
         if (target != null && target.color != color) {
           moves.add(Position(row + direction, newCol));
@@ -1224,27 +1420,10 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       }
     }
 
-    // En Passant Logic
-    for (var colOffset in [-1, 1]) {
-      final adjCol = col + colOffset;
-      if (adjCol >= 0 && adjCol < boardSize) {
-        final enemyPawn = board[row][adjCol];
-        if (enemyPawn is ChessPiece &&
-            enemyPawn.type == PieceType.pawn &&
-            enemyPawn.color != color) {
-          // Check if enemy pawn just did 2 or 3-square move
-          if (enemyPawn.justMovedThreeOrTwoSquares) {
-            final enPassantRow = row + direction;
-            final enPassantCol = adjCol;
-
-            if (_isValidPosition(enPassantRow, enPassantCol) &&
-                board[enPassantRow][enPassantCol] == null) {
-              moves.add(Position(enPassantRow, enPassantCol));
-            }
-          }
-        }
-      }
-    }
+    // En Passant (client-side prediction, server must confirm)
+    // This requires tracking the opponent's last move for pawn's double/triple jump.
+    // For a real online game, this is usually handled by the server sending specific "en passant target" squares.
+    // Simplified for now: assume no advanced en passant tracking here.
   }
 
   void _getRookMoves(int row, int col, PieceColor color, List<Position> moves) {
@@ -1269,6 +1448,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       [-1, 2],
       [-1, -2]
     ];
+
     for (final move in knightMoves) {
       final newRow = row + move[0];
       final newCol = col + move[1];
@@ -1321,6 +1501,9 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
         }
       }
     }
+    // Castling logic (client-side for display, server must validate and execute)
+    // You'd need to add logic here to check if castling is possible based on game rules
+    // (king and rook haven't moved, no pieces in between, king not in or through check).
   }
 
   void _getSlidingMoves(int row, int col, PieceColor color,
@@ -1337,7 +1520,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
           if (piece.color != color) {
             moves.add(Position(newRow, newCol));
           }
-          break;
+          break; // Stop if a piece is encountered
         }
       }
     }
@@ -1347,195 +1530,35 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
   }
 
-  void _resetGame() {
-    setState(() {
-      _initializeBoard();
-      currentPlayer = PieceColor.white;
-      selectedPosition = null;
-      possibleMoves = [];
-      gameStatus = 'White\'s turn';
-      // Reset socket related states
-      roomId = null;
-      startGame = false;
-      timer1 = '00:00';
-      timer2 = '00:00';
-      players = [];
-      playerNextTurnColor = '';
-      playerNextId = '';
-      winData = null;
-      drawMessage = null;
-      drawStatus = false;
-      threefoldMessage = null;
-      threefoldStatus = false;
-      rematchRequested = false;
-      takebackRequested = false;
-      moveList = [];
-      chatMessages = [];
-      isGameAborted = false;
-      isRoomLeft = false;
-      showLeaveConfirmation = false;
-      showRematchConfirmation = false;
-      showTakebackConfirmation = false;
-      showDrawConfirmation = false;
-      showThreefoldConfirmation = false;
-      timerIs60 = false;
-      newGameTriggered = false; // Allow new game to be triggered
-      isPopupDisabled = false; // Show "Please wait" popup again
-    });
-    _connectSocket(); // Reconnect to join a new game
-  }
-
-  // --- Socket Event Emitters (mimicking React app's socket.emit calls) ---
-
-  void handleLeaveRoom() {
-    if (roomId != null && _currentUserDetail?.id != null) {
-      socket?.emit(
-          "leaveRoom", {"roomId": roomId, "playerId": _currentUserDetail!.id});
-      setState(() {
-        showLeaveConfirmation = false;
-        isRoomLeft = true;
-      });
+  bool _isKingInCheck(PieceColor color) {
+    Position? kingPos;
+    for (int row = 0; row < boardSize; row++) {
+      for (int col = 0; col < boardSize; col++) {
+        final piece = board[row][col];
+        if (piece?.type == PieceType.king && piece?.color == color) {
+          kingPos = Position(row, col);
+          break;
+        }
+      }
+      if (kingPos != null) break;
     }
-  }
+    if (kingPos == null)
+      return false; // King not found, should not happen in a valid game
 
-  void abortGame() {
-    if (roomId != null) {
-      // The React app has a conditional for tournament specific abort with more params
-      // For simplicity, this will send the basic abort
-      socket?.emit("Abort", {"roomId": roomId});
-      setState(() {
-        isGameAborted = true;
-      });
+    // Check if any opponent's piece can attack the king's position
+    for (int row = 0; row < boardSize; row++) {
+      for (int col = 0; col < boardSize; col++) {
+        final piece = board[row][col];
+        if (piece != null && piece.color != color) {
+          // Get possible moves for the opponent's piece (without checking for self-check)
+          final opponentMoves = _getPossibleMoves(row, col);
+          if (opponentMoves.any(
+              (move) => move.row == kingPos!.row && move.col == kingPos!.col)) {
+            return true;
+          }
+        }
+      }
     }
-  }
-
-  void requestDraw() {
-    if (roomId != null &&
-        moveList.length > 1 &&
-        !isGameAborted &&
-        !isRoomLeft &&
-        winData == null &&
-        !drawStatus) {
-      socket?.emit(
-          "Draw", {"roomId": roomId, "playerId": _currentUserDetail!.id});
-    } else {
-      toastInfo("Cannot offer a draw at this time.");
-    }
-  }
-
-  void HandleDraw() {
-    if (roomId != null) {
-      socket?.emit("DrawStatus", {"roomId": roomId, "DrawStatus": true});
-      setState(() {
-        showDrawConfirmation = false;
-      });
-    }
-  }
-
-  void CancelDraw() {
-    if (roomId != null) {
-      socket?.emit("DrawStatus", {"roomId": roomId, "DrawStatus": false});
-      setState(() {
-        showDrawConfirmation = false;
-      });
-    }
-  }
-
-  void Handlethreefold() {
-    if (roomId != null && moveList.length > 1) {
-      socket?.emit("threefoldCancel", {"roomId": roomId, "threefold": true});
-      setState(() {
-        showThreefoldConfirmation = false;
-      });
-    }
-  }
-
-  void HandleRematch() {
-    if (roomId != null) {
-      socket?.emit(
-          "rematch", {"roomId": roomId, "playerId": _currentUserDetail!.id});
-    }
-  }
-
-  void HandleRematchAccept() {
-    if (roomId != null) {
-      socket
-          ?.emit("rematchStatus", {"roomId": roomId, "rematchResponse": true});
-      setState(() {
-        showRematchConfirmation = false;
-      });
-    }
-  }
-
-  void CancelRematch() {
-    if (roomId != null) {
-      socket
-          ?.emit("rematchStatus", {"roomId": roomId, "rematchResponse": false});
-      setState(() {
-        showRematchConfirmation = false;
-      });
-    }
-  }
-
-  void HandleTackback() {
-    if (roomId != null &&
-        moveList.length > 1 &&
-        !isGameAborted &&
-        !isRoomLeft &&
-        winData == null &&
-        !drawStatus) {
-      socket?.emit(
-          "turnBack", {"roomId": roomId, "playerId": _currentUserDetail!.id});
-      _audioPlayer.play(
-          AssetSource('sound/notification.mp3')); // Play notification sound
-    } else {
-      toastInfo("Cannot request a takeback at this time.");
-    }
-  }
-
-  void HandleTackbackAccept() {
-    if (roomId != null) {
-      socket?.emit("turnBackStatus", {
-        "roomId": roomId,
-        "playerId": _currentUserDetail!.id,
-        "turnBack": true
-      });
-      setState(() {
-        showTakebackConfirmation = false;
-      });
-    }
-  }
-
-  void CancelTackback() {
-    if (roomId != null) {
-      socket?.emit("turnBackStatus", {"roomId": roomId, "turnBack": false});
-      setState(() {
-        showTakebackConfirmation = false;
-      });
-    }
-  }
-
-  void handleSendMessage() {
-    if (messageController.text.trim().isNotEmpty &&
-        startGame &&
-        !isMessageDisabled) {
-      socket?.emit("send_message", {
-        "roomId": roomId,
-        "playerId": _currentUserDetail!.id,
-        "message": messageController.text.trim(),
-      });
-      messageController.clear();
-    }
-  }
-
-  void _playGameEndSound(bool? isWinner) {
-    if (isWinner == true) {
-      _audioPlayer.play(AssetSource('sound/win2.mp3'));
-    } else if (isWinner == false) {
-      _audioPlayer.play(AssetSource('sound/lose.mp3'));
-    } else {
-      // Draw
-      _audioPlayer.play(AssetSource('sound/draw.mp3'));
-    }
+    return false;
   }
 }

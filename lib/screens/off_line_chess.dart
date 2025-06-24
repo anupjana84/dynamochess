@@ -20,7 +20,6 @@ enum PieceType {
 class Position {
   final int row;
   final int col;
-
   Position(this.row, this.col);
 
   @override
@@ -111,7 +110,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   // --- Move History related variables ---
   List<Move> moveHistory = [];
   int currentMoveIndex = -1; // -1 means no move has been made yet
-  // --- End Move History related variables ---
 
   @override
   void initState() {
@@ -136,7 +134,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
 
   void _initializeBoard() {
     board = List.generate(boardSize, (i) => List.filled(boardSize, null));
-
     for (int i = 0; i < boardSize; i++) {
       board[1][i] = ChessPiece(PieceColor.black, PieceType.pawn);
       board[boardSize - 2][i] = ChessPiece(PieceColor.white, PieceType.pawn);
@@ -154,7 +151,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       PieceType.knight,
       PieceType.rook
     ];
-
     final whitePiecesOrder = [
       PieceType.rook,
       PieceType.knight,
@@ -211,8 +207,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
                     Icons.refresh,
                     color: Colors.white,
                   ),
-                  onPressed: _playMoveSound // _resetGame,
-                  ),
+                  onPressed: _resetGame),
             ],
           )
         ],
@@ -305,31 +300,22 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     return 'assets/images/${colorString}_$type.png';
   }
 
-  // Color _getSquareColor(
-  //     int row, int col, bool isSelected, bool isPossibleMove) {
-  //   if (isSelected) return Colors.blue[400]!;
-  //   if (isPossibleMove) return Colors.blue[200]!;
-  //   return (row + col) % 2 == 0 ? Colors.yellow : Colors.green;
-  // }
   Color _getSquareColor(
       int row, int col, bool isSelected, bool isPossibleMove) {
     if (isSelected) return Colors.blue[400]!;
     if (isPossibleMove) return Colors.blue[200]!;
 
-    // Check if this square contains the current player's king and is in check
     final piece = board[row][col];
     if (piece?.type == PieceType.king &&
         piece?.color == currentPlayer &&
         _isKingInCheck(piece!.color)) {
-      return Colors.red; // Red circle background
+      return Colors.red;
     }
-
-    return (row + col) % 2 == 0 ? Colors.yellow : Colors.green;
+    return (row + col) % 2 == 0 ? const Color(0xFFDCDA5C) : Colors.green;
   }
 
   void _handleTap(int row, int col) {
     final piece = board[row][col];
-
     if (currentMoveIndex != moveHistory.length - 1) {
       setState(() {
         gameStatus = 'Return to present to make a new move.';
@@ -340,7 +326,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     if (piece != null && piece.color == currentPlayer) {
       setState(() {
         selectedPosition = Position(row, col);
-        possibleMoves = _getPossibleMoves(row, col);
+        possibleMoves = _getValidMoves(row, col); // Only valid moves allowed
         gameStatus = 'Selected: ${piece.name}';
       });
     } else if (selectedPosition != null) {
@@ -356,7 +342,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     setState(() {
       final movingPiece = board[fromRow][fromCol];
       final capturedPiece = board[toRow][toCol];
-
       moveHistory.add(Move(Position(fromRow, fromCol), Position(toRow, toCol),
           movingPiece, capturedPiece));
       currentMoveIndex = moveHistory.length - 1;
@@ -410,7 +395,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
         }
       }
     }
-
     _checkCastling(row, col, color, moves);
   }
 
@@ -442,15 +426,12 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       final isKingside = rookCol > kingCol;
       final kingNewCol = isKingside ? kingCol + 3 : kingCol - 3;
       final rookNewCol = isKingside ? kingCol + 2 : kingCol - 2;
-
       final movingKing = board[kingRow][kingCol];
       final movingRook = board[rookRow][rookCol];
-
       board[kingNewCol][kingNewCol] = movingKing;
       board[rookRow][rookNewCol] = movingRook;
       board[kingRow][kingCol] = null;
       board[rookRow][rookCol] = null;
-
       selectedPosition = null;
       possibleMoves = [];
       currentPlayer = currentPlayer == PieceColor.white
@@ -462,7 +443,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   void _checkMissileCaptureWin() {
     int whiteMissiles = 0;
     int blackMissiles = 0;
-
     for (var row in board) {
       for (var piece in row) {
         if (piece?.type == PieceType.missile) {
@@ -473,7 +453,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
         }
       }
     }
-
     if (whiteMissiles == 0) {
       gameStatus = 'Black wins by capturing both Missiles!';
     } else if (blackMissiles == 0) {
@@ -486,7 +465,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     Position? missilePos;
     ChessPiece? enemyKing;
     Position? enemyKingPos;
-
     for (int r = 0; r < boardSize; r++) {
       for (int c = 0; c < boardSize; c++) {
         final piece = board[r][c];
@@ -501,7 +479,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
         }
       }
     }
-
     if (missile != null &&
         enemyKing != null &&
         missilePos != null &&
@@ -509,10 +486,8 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       final isCorner =
           (enemyKingPos!.row == 0 || enemyKingPos!.row == boardSize - 1) &&
               (enemyKingPos!.col == 0 || enemyKingPos!.col == boardSize - 1);
-
       final distance = (missilePos!.row - enemyKingPos!.row).abs() +
           (missilePos!.col - enemyKingPos!.col).abs();
-
       if (isCorner && distance <= 2) {
         gameStatus =
             '${missile!.color == PieceColor.white ? "White" : "Black"} wins with Missile Mate!';
@@ -523,6 +498,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   List<Position> _getPossibleMoves(int row, int col) {
     final piece = board[row][col];
     if (piece == null) return [];
+
     final moves = <Position>[];
     switch (piece.type) {
       case PieceType.pawn:
@@ -550,6 +526,29 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     return moves;
   }
 
+  List<Position> _getValidMoves(int row, int col) {
+    final piece = board[row][col];
+    if (piece == null) return [];
+
+    final rawMoves = _getPossibleMoves(row, col);
+    final validMoves = <Position>[];
+
+    for (final move in rawMoves) {
+      final capturedPiece = board[move.row][move.col];
+      board[move.row][move.col] = piece;
+      board[row][col] = null;
+
+      if (!_isKingInCheck(piece.color)) {
+        validMoves.add(move);
+      }
+
+      board[row][col] = piece;
+      board[move.row][move.col] = capturedPiece;
+    }
+
+    return validMoves;
+  }
+
   void _getMissileMoves(
       int row, int col, PieceColor color, List<Position> moves) {
     const bishopDirections = [
@@ -570,6 +569,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       [-1, 2],
       [-1, -2]
     ];
+
     for (final move in knightMoves) {
       final newRow = row + move[0];
       final newCol = col + move[1];
@@ -597,7 +597,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
             board[row + 2 * direction][col] == null) {
           moves.add(Position(row + 2 * direction, col));
         }
-
         if (_isValidPosition(row + 3 * direction, col) &&
             board[row + 3 * direction][col] == null) {
           moves.add(Position(row + 3 * direction, col));
@@ -658,6 +657,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       [-1, 2],
       [-1, -2]
     ];
+
     for (final move in knightMoves) {
       final newRow = row + move[0];
       final newCol = col + move[1];
@@ -716,22 +716,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     }
   }
 
-  // void _getKingMoves(int row, int col, PieceColor color, List<Position> moves) {
-  //   for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
-  //     for (int colOffset = -1; colOffset <= 1; colOffset++) {
-  //       if (rowOffset == 0 && colOffset == 0) continue;
-  //       final newRow = row + rowOffset;
-  //       final newCol = col + colOffset;
-  //       if (_isValidPosition(newRow, newCol)) {
-  //         final piece = board[newRow][newCol];
-  //         if (piece == null || piece.color != color) {
-  //           moves.add(Position(newRow, newCol));
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
-
   bool _isValidPosition(int row, int col) {
     return row >= 0 && row < boardSize && col >= 0 && col < boardSize;
   }
@@ -765,9 +749,40 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
+                // children: List.generate(
+                //   moveHistory.length,
+                //   (index) {
+                //     final move = moveHistory[index];
+                //     final isCurrentMove = index == currentMoveIndex;
+                //     return GestureDetector(
+                //       onTap: () => _goToMove(index),
+                //       child: Container(
+                //         decoration: BoxDecoration(
+                //           color: isCurrentMove
+                //               ? Colors.blue.withOpacity(0.3)
+                //               : Colors.transparent,
+                //           borderRadius: BorderRadius.circular(4),
+                //         ),
+                //         padding: const EdgeInsets.symmetric(
+                //             vertical: 4, horizontal: 8),
+                //         width: MediaQuery.of(context).size.width / 2 - 20,
+                //         child: Text(
+                //           '${index + 1}. ${move.movedPiece?.name} ${move.movedPiece?.symbol} ${move.from.algebraic} → ${move.to.algebraic}',
+                //           style: TextStyle(
+                //             fontWeight: isCurrentMove
+                //                 ? FontWeight.bold
+                //                 : FontWeight.normal,
+                //           ),
+                //         ),
+                //       ),
+                //     );
+                //   },
+                // ),
                 children: List.generate(moveHistory.length, (index) {
                   final move = moveHistory[index];
                   final isCurrentMove = index == currentMoveIndex;
+                  final notation = getAlgebraicNotation(move);
+
                   return GestureDetector(
                     onTap: () => _goToMove(index),
                     child: Container(
@@ -781,7 +796,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
                           vertical: 4, horizontal: 8),
                       width: MediaQuery.of(context).size.width / 2 - 20,
                       child: Text(
-                        '${index + 1}. ${move.movedPiece?.name} ${move.movedPiece?.symbol} ${move.from.algebraic} → ${move.to.algebraic}',
+                        '${index + 1}. $notation',
                         style: TextStyle(
                           fontWeight: isCurrentMove
                               ? FontWeight.bold
@@ -870,9 +885,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     _goToMove(moveHistory.length - 1);
   }
 
-  // add new function
   bool _isKingInCheck(PieceColor color) {
-    // Find king position
     Position? kingPos;
     for (int row = 0; row < boardSize; row++) {
       for (int col = 0; col < boardSize; col++) {
@@ -884,23 +897,20 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       }
       if (kingPos != null) break;
     }
-
     if (kingPos == null) return false;
 
-    // Check if any opponent piece attacks the king
     for (int row = 0; row < boardSize; row++) {
       for (int col = 0; col < boardSize; col++) {
         final piece = board[row][col];
         if (piece != null && piece.color != color) {
           final moves = _getPossibleMoves(row, col);
           if (moves.any(
-              (move) => move.row == kingPos!.row && move.col == kingPos.col)) {
+              (move) => move.row == kingPos!.row && move.col == kingPos!.col)) {
             return true;
           }
         }
       }
     }
-
     return false;
   }
 
@@ -914,14 +924,36 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   void _playMoveSound() async {
     try {
       await _audioPlayer.play(AssetSource('sound/move.mp3'));
-      // if (result == 1) {
-      //   print("Sound played successfully");
-      // } else {
-      //   print("Failed to play sound");
-      // }
     } catch (e) {
       print("Error playing sound: $e");
     }
+  }
+
+//
+  String getAlgebraicNotation(Move move) {
+    final movingPiece = move.movedPiece;
+    final capturedPiece = move.capturedPiece;
+
+    String piecePrefix = '';
+
+    if (movingPiece != null && movingPiece.type == PieceType.pawn) {
+      // For pawns, use file (column letter) only if there's a capture
+      final fromColChar =
+          String.fromCharCode('a'.codeUnitAt(0) + move.from.col);
+      final toColChar = String.fromCharCode('a'.codeUnitAt(0) + move.to.col);
+      if (capturedPiece != null || toColChar != fromColChar) {
+        return '${fromColChar}x$toColChar${move.to.algebraic[1]}';
+      }
+    }
+
+    // If not a pawn, just add normal prefix
+    String targetSquare = move.to.algebraic;
+
+    if (capturedPiece != null) {
+      return '${piecePrefix}x$targetSquare';
+    }
+
+    return '$piecePrefix$targetSquare';
   }
 
   @override
