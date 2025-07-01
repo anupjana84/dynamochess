@@ -1,6 +1,6 @@
 // online_chess_screen.dart
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 enum PieceColor { white, black }
 
@@ -50,7 +50,7 @@ class OnlineChessScreen extends StatefulWidget {
 }
 
 class _OnlineChessScreenState extends State<OnlineChessScreen> {
-  late IO.Socket socket;
+  late io.Socket socket;
   static const int boardSize = 10;
   List<List<dynamic>> board = [];
   String currentPlayer = 'white';
@@ -68,14 +68,14 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
   void connectToSocket() {
     // Use your Mac's local IP address instead of localhost
     // You can find this in System Preferences > Network
-    socket = IO.io(
+    socket = io.io(
         'https://5002-2409-40e1-106a-560b-4897-bdeb-5ec2-a48d.ngrok-free.app',
         <String, dynamic>{
           'transports': ['websocket'],
         });
 
     socket.onConnect((_) {
-      print('Connected to server');
+      debugPrint('Connected to server');
       socket.emit("joinGame", widget.roomId);
     });
 
@@ -128,7 +128,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
     });
 
     socket.onDisconnect((_) {
-      print("Socket disconnected");
+      debugPrint("Socket disconnected");
       setState(() {
         gameStatus = 'Disconnected from server';
       });
@@ -182,7 +182,7 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
         title: Text('Online Chess - Room: ${widget.roomId}'),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: opponentConnected ? resetGame : null,
           ),
         ],
@@ -231,17 +231,17 @@ class _OnlineChessScreenState extends State<OnlineChessScreen> {
                 },
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             if (!opponentConnected)
-              Text(
+              const Text(
                 'Waiting for opponent to join...',
                 style: TextStyle(color: Colors.orange),
               ),
             if (isMyTurn && opponentConnected)
               Text(
                 'Your turn ($myColor)',
-                style:
-                    TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.green, fontWeight: FontWeight.bold),
               ),
           ],
         ),

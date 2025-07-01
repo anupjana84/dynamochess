@@ -1,6 +1,6 @@
 import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:audioplayers/audioplayers.dart';
 
 // --- Enums ---
@@ -105,7 +105,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   Position? selectedPosition;
   List<Position> possibleMoves = [];
   String gameStatus = 'White\'s turn';
-  IO.Socket? socket;
+  io.Socket? socket;
 
   // --- Move History related variables ---
   List<Move> moveHistory = [];
@@ -119,8 +119,8 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   }
 
   void _connectSocket() {
-    print("object");
-    socket = IO.io(ApiList.baseUrl, <String, dynamic>{
+    debugPrint("object");
+    socket = io.io(ApiList.baseUrl, <String, dynamic>{
       'transports': ['websocket', 'polling'],
       'autoConnect': false,
       'reconnection': true,
@@ -128,7 +128,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
     });
     socket?.connect();
     socket?.onConnect((_) {
-      print('Connected to Socket.IO');
+      debugPrint('Connected to Socket.IO');
     });
   }
 
@@ -358,7 +358,13 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
       } else {
         board[toRow][toCol] = movingPiece;
       }
+      // Now get the updated board
+      debugPrint("Updated board: $board");
 
+      // If you want to print each row for clarity:
+      for (int i = 0; i < board.length; i++) {
+        debugPrint("Row $i: ${board[i]}");
+      }
       board[fromRow][fromCol] = null;
       selectedPosition = null;
       possibleMoves = [];
@@ -375,6 +381,8 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
 
   void _checkPawnPromotion(int row, int col) {
     final piece = board[row][col];
+    print(board[row][col]);
+    print("piece ${piece}");
     if (piece?.type == PieceType.pawn && (row == 0 || row == boardSize - 1)) {
       board[row][col] = ChessPiece(piece!.color, PieceType.missile);
       gameStatus = 'Pawn promoted to Missile!';
@@ -484,13 +492,13 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
         missilePos != null &&
         enemyKingPos != null) {
       final isCorner =
-          (enemyKingPos!.row == 0 || enemyKingPos!.row == boardSize - 1) &&
-              (enemyKingPos!.col == 0 || enemyKingPos!.col == boardSize - 1);
-      final distance = (missilePos!.row - enemyKingPos!.row).abs() +
-          (missilePos!.col - enemyKingPos!.col).abs();
+          (enemyKingPos.row == 0 || enemyKingPos.row == boardSize - 1) &&
+              (enemyKingPos.col == 0 || enemyKingPos.col == boardSize - 1);
+      final distance = (missilePos.row - enemyKingPos.row).abs() +
+          (missilePos.col - enemyKingPos.col).abs();
       if (isCorner && distance <= 2) {
         gameStatus =
-            '${missile!.color == PieceColor.white ? "White" : "Black"} wins with Missile Mate!';
+            '${missile.color == PieceColor.white ? "White" : "Black"} wins with Missile Mate!';
       }
     }
   }
@@ -905,7 +913,7 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
         if (piece != null && piece.color != color) {
           final moves = _getPossibleMoves(row, col);
           if (moves.any(
-              (move) => move.row == kingPos!.row && move.col == kingPos!.col)) {
+              (move) => move.row == kingPos!.row && move.col == kingPos.col)) {
             return true;
           }
         }

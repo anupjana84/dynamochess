@@ -24,9 +24,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isObscured = true;
   bool _isLoading = false;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'], // Requested permissions
-    clientId: 'YOUR_CLIENT_ID', // Optional (required for some platforms)
-  );
+      // scopes: ['email', 'profile'], // Requested permissions
+      // clientId:
+      //     '13846888299-k2a9830t3re2u8cph5askmn8i1hp128h.apps.googleusercontent.com', // Optional (required for some platforms)
+      );
 
   final RegExp _emailRegex = RegExp(
       r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
@@ -155,63 +156,41 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    //   final GoogleSignIn _googleSignIn = GoogleSignIn();
-
-    //   try {
-    //     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    //     if (googleUser == null) return;
-
-    //     final GoogleSignInAuthentication googleAuth =
-    //         await googleUser.authentication;
-
-    //     final Map<String, dynamic> data = {
-    //       'token': googleAuth.idToken,
-    //       'provider': 'google'
-    //     };
-
-    //     print(data);
-    //     // final NetworkResponse response =
-    //     //     await ApiCall.postApiCall(ApiList.googleLogin, body: data);
-
-    //     // if (response.isSuccess) {
-    //     //   Get.snackbar("Success", "Google login successful!");
-    //     //   Get.offAllNamed('/home');
-    //     // } else {
-    //     //   String errorMessage = "Login failed";
-    //     //   try {
-    //     //     final errorData = jsonDecode(response.errorMessage);
-    //     //     if (errorData is Map && errorData.containsKey('message')) {
-    //     //       errorMessage = errorData['message'];
-    //     //     }
-    //     //   } catch (e) {
-    //     //     errorMessage = response.errorMessage;
-    //     //   }
-    //     //   Get.snackbar("Error", errorMessage, backgroundColor: Colors.red);
-    //     // }
-    //   } catch (error) {
-    //     Get.snackbar("Error", "Google sign-in failed",
-    //         backgroundColor: Colors.red);
-    //   }
-    // }
+    print("object");
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return; // User canceled
+      // final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      // if (googleUser == null) return; // User canceled sign-in
 
-      // Get auth tokens
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      // final GoogleSignInAuthentication googleAuth =
+      //     await googleUser.authentication;
 
-      // Extract tokens
-      final String? idToken = googleAuth.idToken;
+      // final String? idToken = googleAuth.idToken;
 
-      if (idToken == null) {
-        throw Exception('Google Sign-In failed: No ID token.');
-      }
+      // if (idToken == null) {
+      //   throw Exception('Google Sign-In failed: No ID token.');
+      // }
 
-      // Send tokens to your backend for verification
-      //await verifyWithBackend(idToken, accessToken);
+      // You can also get accessToken if needed
+      // final String? accessToken = googleAuth.accessToken;
+      var user = await _googleSignIn.signIn();
+      print('ID Token:  $user');
+      // print('ID Token: $idToken');
+      // print('ID Token: ');
+
+      // TODO: Send the ID token to your backend for verification
+      // Example:
+      // final NetworkResponse response = await ApiCall.postApiCall(
+      //   ApiList.googleLogin,
+      //   body: {'token': idToken, 'provider': 'google'},
+      // );
+
+      // Handle login success or failure
+      // Get.snackbar("Success", "Google login successful!");
+      // Get.offAllNamed('/home');
     } catch (e) {
       print('Error signing in with Google: $e');
+      // Optionally show an error snack bar or dialog
+      // Get.snackbar("Error", "Google sign-in failed", backgroundColor: Colors.red);
     }
   }
 

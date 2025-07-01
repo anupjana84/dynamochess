@@ -29,6 +29,14 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+     signingConfigs {
+        debug {
+            keyAlias 'upload'
+            keyPassword '123456'
+            storeFile file('upload-keystore1.jks')
+            storePassword '123456'
+        }
+    }
 
     buildTypes {
         release {

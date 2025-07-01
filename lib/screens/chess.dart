@@ -14,7 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart'; // For accessing Sh
 
 void toastInfo(String message) {
   // Replace with your actual toast/snackbar implementation
-  print('Toast: $message');
+
   // Example using ScaffoldMessenger (requires a BuildContext)
   // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
@@ -24,6 +24,7 @@ class ChessBoardScreen extends StatefulWidget {
   const ChessBoardScreen({super.key});
 
   @override
+  // ignore: library_private_types_in_public_api
   _ChessBoardScreenState createState() => _ChessBoardScreenState();
 }
 
@@ -129,7 +130,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     socket?.connect();
 
     socket?.onConnect((_) {
-      print('Connected to Socket.IO');
+      //print('Connected to Socket.IO');
       if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
         _joinRoom();
       } else {
@@ -137,9 +138,9 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       }
     });
 
-    socket?.onDisconnect((_) => print('Disconnected from Socket.IO'));
-    socket?.onConnectError((err) => print('Connection Error: $err'));
-    socket?.onError((err) => print('Socket Error: $err.toString()'));
+    socket?.onDisconnect((_) => debugPrint('Disconnected from Socket.IO'));
+    socket?.onConnectError((err) => debugPrint('Connection Error: $err'));
+    socket?.onError((err) => debugPrint('Socket Error: $err.toString()'));
 
     _setupSocketListeners();
   }
@@ -149,7 +150,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     socket?.on('roomJoined', (data) {
       setState(() {
         roomId = data['roomId'];
-        print('Room Joined: $roomId');
+        debugPrint('Room Joined: $roomId');
       });
     });
 
@@ -1010,54 +1011,100 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     return 'assets/images/${colorString}_$type.png';
   }
 
-  void _handleTap(int row, int col) {
-    // Only allow moves if game has started and it's this player's turn
-    if (!startGame ||
-        _currentUserDetail == null ||
-        _currentUserDetail!.id != playerNextId) {
-      toastInfo(_currentUserDetail?.id != playerNextId
-          ? "It's not your turn!"
-          : "Game has not started yet.");
-      return;
-    }
+  // void _handleTap(int row, int col) {
+  //   // Only allow moves if game has started and it's this player's turn
+  //   if (!startGame ||
+  //       _currentUserDetail == null ||
+  //       _currentUserDetail!.id != playerNextId) {
+  //     toastInfo(_currentUserDetail?.id != playerNextId
+  //         ? "It's not your turn!"
+  //         : "Game has not started yet.");
+  //     return;
+  //   }
 
-    // Determine the color of the current user based on the 'players' list
-    // This is the color of the pieces they are controlling.
-    final PieceColor? currentUserControlledColor = players.firstWhere(
-                (p) => p['playerId'] == _currentUserDetail!.id,
-                orElse: () => {'colour': 'w'})['colour'] ==
+  //   // Determine the color of the current user based on the 'players' list
+  //   // This is the color of the pieces they are controlling.
+  //   final PieceColor? currentUserControlledColor = players.firstWhere(
+  //               (p) => p['playerId'] == _currentUserDetail!.id,
+  //               orElse: () => {'colour': 'w'})['colour'] ==
+  //           'w'
+  //       ? PieceColor.white
+  //       : PieceColor.black;
+
+  //   final piece = board[row][col];
+
+  //   if (selectedPosition == null) {
+  //     // First tap: select a piece
+  //     if (piece != null && piece.color == currentUserControlledColor) {
+  //       setState(() {
+  //         selectedPosition = Position(row, col);
+  //         possibleMoves = _getValidMoves(
+  //             row, col); // Get valid moves for client-side display
+  //         gameStatus = 'Selected: ${piece.name}';
+  //       });
+  //     } else if (piece != null && piece.color != currentUserControlledColor) {
+  //       toastInfo("You can only move your own pieces.");
+  //     }
+  //   } else {
+  //     // Second tap: move the selected piece
+  //     final moveIsValid =
+  //         possibleMoves.any((pos) => pos.row == row && pos.col == col);
+  //     if (moveIsValid) {
+  //       _sendMoveToServer(
+  //           selectedPosition!.row, selectedPosition!.col, row, col);
+  //       // Clear selection immediately after sending the move
+  //       setState(() {
+  //         selectedPosition = null;
+  //         possibleMoves = [];
+  //       });
+  //     } else {
+  //       // Tapped an invalid square or the same piece again
+  //       setState(() {
+  //         selectedPosition = null;
+  //         possibleMoves = [];
+  //         gameStatus =
+  //             'Invalid move. Select your piece or a valid destination.';
+  //       });
+  //     }
+  //   }
+  // }
+  void _handleTap(int row, int col) {
+    final piece = board[row][col];
+
+    // Determine what color the current user is assigned to
+    final currentUserControlledColor = players.firstWhere(
+              (p) => p['playerId'] == _currentUserDetail!.id,
+              orElse: () => {'colour': 'w'},
+            )['colour'] ==
             'w'
         ? PieceColor.white
         : PieceColor.black;
 
-    final piece = board[row][col];
+    print(
+        "Tapped piece: $piece | Controlled color: $currentUserControlledColor");
 
-    if (selectedPosition == null) {
-      // First tap: select a piece
-      if (piece != null && piece.color == currentUserControlledColor) {
-        setState(() {
-          selectedPosition = Position(row, col);
-          possibleMoves = _getValidMoves(
-              row, col); // Get valid moves for client-side display
-          gameStatus = 'Selected: ${piece.name}';
-        });
-      } else if (piece != null && piece.color != currentUserControlledColor) {
-        toastInfo("You can only move your own pieces.");
-      }
+    if (piece != null && piece.color == currentUserControlledColor) {
+      setState(() {
+        selectedPosition = Position(row, col);
+        possibleMoves = _getValidMoves(row, col); // Calculate valid moves
+        gameStatus = 'Selected: ${piece.name}';
+        print("Possible moves for $row,$col: $possibleMoves");
+      });
+    } else if (piece != null && piece.color != currentUserControlledColor) {
+      toastInfo("You can only move your own pieces.");
     } else {
-      // Second tap: move the selected piece
       final moveIsValid =
           possibleMoves.any((pos) => pos.row == row && pos.col == col);
+      print("[$row,$col] isPossibleMove = $moveIsValid");
+
       if (moveIsValid) {
         _sendMoveToServer(
             selectedPosition!.row, selectedPosition!.col, row, col);
-        // Clear selection immediately after sending the move
         setState(() {
           selectedPosition = null;
           possibleMoves = [];
         });
       } else {
-        // Tapped an invalid square or the same piece again
         setState(() {
           selectedPosition = null;
           possibleMoves = [];
@@ -1068,10 +1115,38 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
     }
   }
 
+  // void _sendMoveToServer(int fromRow, int fromCol, int toRow, int toCol) {
+  //   final movingPiece = board[fromRow][fromCol];
+  //   if (movingPiece == null)
+  //     return; // Should not happen if _handleTap is correct
+
+  //   socket?.emit('move', {
+  //     'roomId': roomId,
+  //     'playerId': _currentUserDetail!.id,
+  //     'oldX': fromRow,
+  //     'oldY': fromCol,
+  //     'newX': toRow,
+  //     'newY': toCol,
+  //     'colour': movingPiece.color == PieceColor.white ? 'w' : 'b',
+  //     'currentTimer': _currentUserDetail!.id ==
+  //             players.firstWhere(
+  //                 (p) => p['playerId'] == _currentUserDetail!.id)['playerId']
+  //         ? timer1 // Assuming timer1 is current user's timer
+  //         : timer2, // Assuming timer2 is opponent's timer
+  //   });
+
+  //   _playMoveSound();
+  // }
   void _sendMoveToServer(int fromRow, int fromCol, int toRow, int toCol) {
     final movingPiece = board[fromRow][fromCol];
-    if (movingPiece == null)
-      return; // Should not happen if _handleTap is correct
+    if (movingPiece == null) return;
+
+    setState(() {
+      board[toRow][toCol] = movingPiece;
+      board[fromRow][fromCol] = null;
+      selectedPosition = null;
+      possibleMoves = [];
+    });
 
     socket?.emit('move', {
       'roomId': roomId,
@@ -1081,14 +1156,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
       'newX': toRow,
       'newY': toCol,
       'colour': movingPiece.color == PieceColor.white ? 'w' : 'b',
-      'currentTimer': _currentUserDetail!.id ==
-              players.firstWhere(
-                  (p) => p['playerId'] == _currentUserDetail!.id)['playerId']
-          ? timer1 // Assuming timer1 is current user's timer
-          : timer2, // Assuming timer2 is opponent's timer
     });
-
-    _playMoveSound();
   }
 
   void _playMoveSound() async {
@@ -1553,7 +1621,7 @@ class _ChessBoardScreenState extends State<ChessBoardScreen> {
           // Get possible moves for the opponent's piece (without checking for self-check)
           final opponentMoves = _getPossibleMoves(row, col);
           if (opponentMoves.any(
-              (move) => move.row == kingPos!.row && move.col == kingPos!.col)) {
+              (move) => move.row == kingPos!.row && move.col == kingPos.col)) {
             return true;
           }
         }

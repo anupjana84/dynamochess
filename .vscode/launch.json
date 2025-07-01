@@ -34,7 +34,10 @@
   "compounds": [
     {
       "name": "All devices",
-      "configurations": ["iPhone 16 Pro", "Android"]
+      "configurations": [
+        "iPhone 16 Pro",
+        "Android"
+      ]
     }
   ]
 }
