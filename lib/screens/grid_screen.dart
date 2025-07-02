@@ -1,8 +1,16 @@
+import 'package:dynamochess/models/user_details.dart';
 import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+
+void toastInfo(String message) {
+  // Replace with your actual toast/snackbar implementation
+
+  // Example using ScaffoldMessenger (requires a BuildContext)
+  // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
 
 List<List<String>> createPosition() {
   // Create a 10x10 board filled with empty strings
@@ -41,6 +49,43 @@ List<List<String>> createPosition() {
   return position;
 }
 
+void createPositionfirst(data) {
+  print(data);
+  // Create a 10x10 board filled with empty strings
+
+  // Setup pawns
+  // for (int i = 0; i < 10; i++) {
+  //   position[1][i] = 'bp'; // Black pawns (now at row 1)
+  //   position[8][i] = 'wp'; // White pawns (now at row 8)
+  // }
+
+  // // Setup black pieces (now at row 0)
+  // position[0][0] = 'br'; // Rook
+  // position[0][1] = 'bn'; // Knight
+  // position[0][2] = 'bb'; // Bishop
+  // position[0][3] = 'bm'; // missile
+  // position[0][4] = 'bq'; // Queen
+  // position[0][5] = 'bk'; // King
+  // position[0][6] = 'bm'; // missile
+  // position[0][7] = 'bb'; // Bishop
+  // position[0][8] = 'bn'; // Knight
+  // position[0][9] = 'br'; // Rook
+
+  // // Setup white pieces (now at row 9)
+  // position[9][0] = 'wr'; // Rook
+  // position[9][1] = 'wn'; // Knight
+  // position[9][2] = 'wb'; // Bishop
+  // position[9][3] = 'wm'; // missile
+  // position[9][4] = 'wq'; // Queen
+  // position[9][5] = 'wk'; // King
+  // position[9][6] = 'wm'; // missile
+  // position[9][7] = 'wb'; // Bishop
+  // position[9][8] = 'wn'; // Knight
+  // position[9][9] = 'wr'; // Rook
+
+  // return position;
+}
+
 const Map<String, String> pieceImages = {
   'bp': 'assets/ducpices/BLACK/bp2.png',
   'br': 'assets/ducpices/BLACK/br2.png',
@@ -70,8 +115,38 @@ class _GridScreenState extends State<GridScreen> {
   int? selectedRow;
   int? selectedCol;
   bool isWhiteTurn = true;
-  late IO.Socket socket;
+  IO.Socket? socket;
 
+  //
+  bool startGame = false;
+  String timer1 = '00:00';
+  String timer2 = '00:00';
+
+  String playerNextTurnColor = ''; // 'w' or 'b'
+  String playerNextId = '';
+  Map<String, dynamic>? winData;
+  String? drawMessage;
+  bool drawStatus = false;
+  String? threefoldMessage;
+  bool threefoldStatus = false;
+  bool rematchRequested = false;
+  bool takebackRequested = false;
+  List<String> moveList = [];
+  List<Map<String, dynamic>> players = [];
+  String? gameStatus;
+  bool showboard = false;
+  String? roomId;
+  bool isMessageDisabled = false;
+  bool isPopupDisabled = false; // For the "Please wait for opponent" popup
+  bool newGameTriggered = false;
+  bool isGameAborted = false;
+  bool isRoomLeft = false;
+  bool showLeaveConfirmation = false;
+  bool showRematchConfirmation = false;
+  bool showTakebackConfirmation = false;
+  bool showDrawConfirmation = false;
+  bool showThreefoldConfirmation = false;
+  bool timerIs60 = false;
   //
   String? playerId;
   String? userName;
@@ -81,144 +156,392 @@ class _GridScreenState extends State<GridScreen> {
   String? dynamoCoin;
   List<List<bool>> validMoves =
       List.generate(10, (_) => List.filled(10, false));
-
+  UserDetail? _currentUserDetail;
   @override
   void initState() {
     super.initState();
     position = createPosition();
     _loadUserData().then((_) {
-      if (playerId != null) {
-        connectToSocket();
+      if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
+        ;
+        _connectSocket();
+        setState(() {
+          gameStatus = 'Initializing game...';
+        });
       } else {
-        Get.snackbar("Error", "User not logged in");
-        // Get.offAllNamed('/login');
+        setState(() {
+          gameStatus = 'Please log in to play';
+          toastInfo("User not logged in. Please log in to play online.");
+          // You might want to navigate to a login screen here
+        });
       }
     });
   }
 
   Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      playerId = prefs.getString('_id');
-      userName = prefs.getString('name');
-      userProfileImage = prefs.getString('profileImageUrl');
-      userRating = prefs.getDouble('rating');
-      countryIcon = prefs.getString('countryIcon');
-      dynamoCoin = prefs.getString('ountryIcon');
+      _currentUserDetail = UserDetail.fromSharedPreferences(prefs);
     });
-    print(playerId);
+  }
+
+  void _connectSocket() {
+    // Replace with your actual backend URL
+    socket = IO.io(ApiList.baseUrl, <String, dynamic>{
+      'transports': ['websocket', 'polling'],
+      'autoConnect': false,
+      'reconnection': true,
+      'timeout': 20000,
+    });
+
+    socket?.connect();
+
+    socket?.onConnect((_) {
+      print('Connected to Socket.IO');
+      if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
+        _joinRoom();
+      } else {
+        toastInfo("User not logged in. Cannot join room.");
+      }
+    });
+
+    socket?.onDisconnect((_) => debugPrint('Disconnected from Socket.IO'));
+    socket?.onConnectError((err) => debugPrint('Connection Error: $err'));
+    socket?.onError((err) => debugPrint('Socket Error: $err.toString()'));
+
+    _setupSocketListeners();
+  }
+
+  void _setupSocketListeners() {
+    socket?.on('roomJoined', (data) {
+      debugPrint(data.toString());
+      setState(() {
+        roomId = data['roomId'];
+        // debugPrint('Room Joined: $roomId');
+      });
+    });
+
+    socket?.on('createPosition', (data) {
+      final List<dynamic> initialBoard = data['createPosition'];
+      print("initialBoard ${initialBoard}");
+      if (initialBoard == null) {
+        setState(() {
+          // showboard = false;
+        });
+      } else {
+        // showboard = true;
+        // position = createPositionfirst(initialBoard);
+      }
+      // final String opponentPlayerId = data['positions'][0]['playerId']; // This is not directly used for board setup here
+
+      setState(() {
+        //startGame = true;
+        // isPopupDisabled = true; // Hide "Please wait" popup
+        // Set the current player ID based on who is 'w' or 'b'
+        // This logic needs to match the backend's assignment of 'w' and 'b'
+        // if (players.isNotEmpty && _currentUserDetail != null) {
+        // Here, we assume 'players' list is populated correctly and contains the color for the current user
+        // final currentPlayerAssignedColor = players.firstWhere(
+        //    (p) => p['playerId'] == _currentUserDetail!.id,
+        //   orElse: () => {'colour': 'w'})['colour'];
+
+        // The backend sends the board from white's perspective.
+        // If current user is black, reverse the board for display.
+        //  if (currentPlayerAssignedColor == 'b') {
+        //   board = _convertBackendBoard(initialBoard, reverse: true);
+        //  } else {
+        //   board = _convertBackendBoard(initialBoard, reverse: false);
+        // }
+        //    }
+        // Initialize playerNextId and playerNextTurnColor based on the start of the game
+        // Usually, white starts, so 'w' and the ID of the white player
+        // playerNextId = players.firstWhere((p) => p['colour'] == 'w',
+        //         orElse: () => {})['playerId'] ??
+        //     '';
+        // playerNextTurnColor = 'w';
+      });
+    });
+
+    socket?.on('receive_boardData', (data) {
+      final List<dynamic> newPositionData = data['data']['newPosition'];
+      // final String receivedPlayerId = data['playerId']; // Not directly used for board update
+      // final String receivedPlayerColor = data['playerColour']; // Not directly used for board update
+
+      setState(() {
+        isGameAborted = false;
+        isRoomLeft = false;
+        winData = null;
+        drawMessage = null;
+        drawStatus = false;
+        threefoldMessage = null;
+        takebackRequested = false;
+        rematchRequested = false;
+
+        // Determine if the board needs to be reversed for the current user
+        if (players.isNotEmpty && _currentUserDetail != null) {
+          final currentPlayerColor = players.firstWhere(
+              (p) => p['playerId'] == _currentUserDetail!.id,
+              orElse: () => {'colour': 'w'})['colour'];
+
+          if (currentPlayerColor == 'b') {
+            // board = _convertBackendBoard(newPositionData, reverse: true);
+          } else {
+            //  board = _convertBackendBoard(newPositionData, reverse: false);
+          }
+        }
+      });
+    });
+
+    socket?.on('updatedRoom', (data) {
+      print("updatedRoom");
+      print('Updated Room: data[' "allBoardData" ']: ${data['allBoardData']}');
+      //setState(() {
+      // roomId = data['_id'];
+      // players = List<Map<String, dynamic>>.from(data['players']);
+      // moveList = List<String>.from(data['moveList'] ?? []);
+      // timer1 = _convertSecondsToMinutes(data['timer1'] ?? 0);
+      // timer2 = _convertSecondsToMinutes(data['timer2'] ?? 0);
+
+      // // Update board if allBoardData is available and not empty
+      // if (data['allBoardData'] != null && data['allBoardData'].isNotEmpty) {
+      //   final List<dynamic> latestBoardData =
+      //       data['allBoardData'].last['newPosition'];
+      //   if (players.isNotEmpty && _currentUserDetail != null) {
+      //     final currentPlayerColor = players.firstWhere(
+      //         (p) => p['playerId'] == _currentUserDetail!.id,
+      //         orElse: () => {'colour': 'w'})['colour'];
+
+      //     if (currentPlayerColor == 'b') {
+      //       board = _convertBackendBoard(latestBoardData, reverse: true);
+      //     } else {
+      //       board = _convertBackendBoard(latestBoardData, reverse: false);
+      //     }
+      //   }
+      // }
+      // });
+    });
+
+    socket?.on('startGame', (data) {
+      print(data);
+      setState(() {
+        // startGame = data['start'];
+        // isPopupDisabled = true; // Hide "Please wait" popup
+        // });
+      });
+
+      socket?.on('timer1', (data) {
+        setState(() {
+          //   timer1 = data;
+        });
+      });
+
+      socket?.on('timer2', (data) {
+        setState(() {
+          // timer2 = data;
+        });
+      });
+
+      socket?.on('nextPlayerTurn', (data) {
+        setState(() {
+          //  playerNextTurnColor = data['playerColour'];
+          //  playerNextId = data['playerId'];
+          //  gameStatus =
+          // '${playerNextTurnColor == 'w' ? 'White' : 'Black'}\'s turn';
+        });
+      });
+
+      socket?.on('playerWon', (data) {
+        setState(() {
+          //   winData = data;
+          // gameStatus = data['playerId'] == _currentUserDetail?.id
+          //    ? 'You Win!'
+          //   : 'You Lose!';
+          // _playGameEndSound(winData?['playerId'] == _currentUserDetail?.id);
+        });
+      });
+
+      socket?.on('abort', (data) {
+        setState(() {
+          // isGameAborted = true;
+          // gameStatus = 'Game Aborted!';
+        });
+      });
+
+      socket?.on('checkMate', (data) {
+        setState(() {
+          // gameStatus = 'Checkmate!';
+          // _playGameEndSound(winData?['playerId'] == _currentUserDetail?.id);
+        });
+      });
+
+      socket?.on('roomLeftPlayerId', (data) {
+        setState(() {
+          // isRoomLeft = true;
+          // gameStatus = 'Opponent Left!';
+        });
+      });
+
+      socket?.on('DrawMessage', (data) {
+        setState(() {
+          //drawMessage = data['message'];
+          //showDrawConfirmation = true;
+        });
+      });
+
+      socket?.on('DrawStatus', (data) {
+        setState(() {
+          // drawStatus = data['DrawStatus'];
+          // if (drawStatus) {
+          //   gameStatus = 'Game Drawn!';
+          //   _playGameEndSound(null); // Play draw sound
+          // }
+          // showDrawConfirmation = false;
+        });
+      });
+
+      socket?.on('ThreeFold', (data) {
+        setState(() {
+          // threefoldMessage = data['message'];
+          // showThreefoldConfirmation = true;
+        });
+      });
+
+      socket?.on('threefoldStatus', (data) {
+        setState(() {
+          // threefoldStatus = data['threefoldStatus'];
+          // if (threefoldStatus) {
+          //   gameStatus = 'Game Drawn by Threefold Repetition!';
+          //   _playGameEndSound(null);
+          // }
+          // showThreefoldConfirmation = false;
+        });
+      });
+
+      socket?.on('rematch', (data) {
+        setState(() {
+          // rematchRequested = data;
+          // showRematchConfirmation = true;
+        });
+      });
+
+      socket?.on('rematchResponse', (data) {
+        setState(() {
+          // rematchRequested = false;
+          // showRematchConfirmation = false;
+          // if (data != false) {
+          //   newGameTriggered = true;
+          //   // In a real app, you'd navigate to the new room,
+          //   // for this example, we'll just reload the board.
+          //   _resetGame(); // Simulate new game
+          //  _joinRoom(); // Join the new room
+          //  }
+        });
+      });
+
+      socket?.on('turnBack', (data) {
+        setState(() {
+          // takebackRequested = data;
+          // showTakebackConfirmation = true;
+        });
+      });
+
+      socket?.on('turnBackStatus', (data) {
+        setState(() {
+          // takebackRequested = false;
+          // showTakebackConfirmation = false;
+          // if (data['turnBackStatus'] == true) {
+          //   // Backend should send the updated board after takeback
+          //   // For now, we'll just acknowledge
+          //   print('Takeback accepted!');
+          //   }
+        });
+      });
+
+      socket?.on('timerIs60', (data) {
+        setState(() {
+          // timerIs60 = data['successfully'];
+          // if (timerIs60 && data['playerId'] == _currentUserDetail?.id) {
+          //   _audioPlayer
+          //       .play(AssetSource('sound/sort3.mp3')); // Play timer warning sound
+          // }
+        });
+      });
+
+      socket?.on('receive_message', (data) {
+        setState(() {
+          // chatMessages.add({
+          //   'playerId': data['playerId'],
+          //   'message': data['message'],
+          // });
+        });
+      });
+
+      socket?.on('castlingStatus', (data) {
+        // Handle castling status if needed for UI, not directly used in this board logic
+        print('Castling Status: ${data['status']} for ${data['playerColour']}');
+      });
+
+      socket?.on('allBoardData', (data) {
+        // This event provides the full history of board states
+        // Useful for move navigation, but `receive_boardData` handles current state
+        print('Received all board data history.');
+      });
+
+      // socket?.on('errorOccured', (data) {
+      //   toastInfo('Error: $data');
+    });
   }
 
   void _joinRoom() {
-    print(playerId);
-    if (playerId == null) return;
+    // Ensure user data is loaded before attempting to join
+    if (_currentUserDetail == null || _currentUserDetail!.id.isEmpty) {
+      toastInfo("User data not loaded. Cannot join room.");
+      return;
+    }
 
-    socket.emit('joinRoom', {
-      "playerId": playerId,
-      "name": userName,
-      "coin": dynamoCoin, // Assuming fixed coin value
-      "profileImageUrl": userProfileImage ?? "",
-      "playerStatus": "Good",
-      "joinId": "randomMultiplayer",
-      "timer": "600", // 10 minutes
-      "countryicon": countryIcon,
-    });
-  }
+    // You need to decide how roomId is determined.
+    // For a random multiplayer game, you might not send a specific joinId.
+    // For joining an existing game or tournament, you'd get this from navigation arguments.
+    final String currentUrl =
+        Uri.base.toString(); // This works for web, less for mobile
+    final bool isTournament = currentUrl.contains("tournament:");
+    final String? uniqueID =
+        isTournament ? currentUrl.split("tournament:")[1].split('/')[0] : null;
+    final String currentRoomId = uniqueID ??
+        'randomMultiplayer'; // Default to random or specific ID from arguments
+    const String currentTime = '600'; // Default time for now
 
-  void connectToSocket() {
-    // IMPORTANT: Replace with your actual backend URL
-    socket = IO.io(ApiList.baseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': true,
-    });
+    if (_currentUserDetail!.dynamoCoin > 200) {
+      final Map<String, dynamic> joinRoomData = {
+        "playerId": _currentUserDetail!.id,
+        "name": _currentUserDetail!.name,
+        "coin": 200, // Assuming a fixed coin value for joining
+        "profileImageUrl": "null", // Placeholder
+        "playerStatus": "Good", // Placeholder
+        "joinId": currentRoomId,
+        "timer": currentTime,
+        "countryicon": _currentUserDetail!.countryIcon,
+        "colour": players.isNotEmpty &&
+                players.any((p) => p['playerId'] == _currentUserDetail!.id)
+            ? players.firstWhere(
+                (p) => p['playerId'] == _currentUserDetail!.id)['colour']
+            : null, // Let backend assign color if not rejoining
+      };
 
-    socket.onConnect((_) {
-      debugPrint("Connected to server");
-      _joinRoom();
-      // socket.on('updatedRoom', (data) {
-      //   print('Room updated: $data');
-      //   // Save roomId, update UI, etc.
-      // });
-
-      // socket.on("updatedRoom", (data) {
-      //   final dd = data?._id;
-      //   debugPrint("updatedRoom");
-      //   debugPrint("data ${dd}");
-      //   debugPrint("updatedRoom");
-      // });
-    });
-
-    socket.on("updatedRoom", (data) {
-      if (data is Map<String, dynamic>) {
-        // Check if data is a map
-        final String? roomId =
-            data['_id'] as String?; // Access '_id' as a string
-        debugPrint("updatedRoom");
-        debugPrint("Room ID: $roomId"); // Now you can print the roomId
-        debugPrint(
-            "Full data: $data"); // Print the entire map to see its structure
-        debugPrint("updatedRoom");
-
-        // You can also access other properties if they exist in the 'data' map
-        // For example:
-        // final List<dynamic>? players = data['players'] as List<dynamic>?;
-        // if (players != null) {
-        //   debugPrint("Players: $players");
-        // }
+      if (isTournament) {
+        socket?.emit('joinRoomViaTournament', joinRoomData);
+      } else if (currentRoomId == "randomMultiplayer") {
+        socket?.emit('joinRoom', joinRoomData);
       } else {
-        debugPrint("updatedRoom: Received data is not a map: $data");
+        socket?.emit('joinById', joinRoomData);
       }
-    });
-    // socket.('')
-    // socket.emit("boardUpdate");
-    socket.on("reJoinRoomData", (roomData) {
       setState(() {
-        // final players = roomData['players'];
-        // for (var p in players) {
-        //   if (p['playerId'] == playerId) {
-        //     playerColor = p['colour'];
-        //     break;
-        //   }
-        // }
-
-        final data = List<List<String>>.from(
-          (roomData['allBoardData'].last['newPosition'] as List)
-              .map((row) => List<String>.from(row as List)),
-        );
-        // board = playerColor == 'w' ? data : reverseBoard(data);
-        // roomCode = roomData['_id'];
-        // currentTurnColor = roomData['turn']; // Get current turn on rejoin
-        // isJoined = true;
-        // isInitialized = true;
-        // isKingInCheckFlag = isKingInCheck(board, playerColor);
-        // debugPrint(
-        //     "Rejoined room: $roomCode. My color: $playerColor. Turn: $currentTurnColor");
+        isPopupDisabled = false; // Show the "Please wait" popup
       });
-    });
-
-    socket.on("JoinStatus", (status) {
-      if (status == true) {
-        debugPrint("Successfully joined room");
-      } else {
-        debugPrint("Failed to join room");
-      }
-    });
-
-    socket.on("nextPlayerTurn", (data) {
-      setState(() {
-        // currentTurnColor =
-        //     data; // Ensure this data is just the color 'w' or 'b'
-        // debugPrint("It's $currentTurnColor's turn.");
-      });
-    });
-
-    socket.on("gameEnded", (data) {
-      setState(() {
-        // isGameOver = true;
-        // gameResult = data['message'] ?? "Game Over!";
-      });
-    });
+    } else {
+      toastInfo("Minimum point 2000 is not available");
+      // Navigate away or show error
+    }
   }
 
   void resetValidMoves() {
@@ -521,12 +844,6 @@ class _GridScreenState extends State<GridScreen> {
                       fit: BoxFit.contain,
                     ),
                   ),
-                // Optional: Display coordinates for debugging
-                // Positioned(
-                //   bottom: 2,
-                //   right: 2,
-                //   child: Text('$row,$col', style: TextStyle(fontSize: 8, color: Colors.grey[700])),
-                // )
               ],
             ),
           );

@@ -28,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _playOffline() {
     // Get.to(const OffLineChessScreen());
-    Get.to(const ChessBoardScreen());
+    Get.to(const GridScreen());
   }
 
   static Future<void> _logout() async {
@@ -88,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: () async {
                         bool isLoggedIn = await hasToken();
                         if (isLoggedIn) {
-                          Get.to(const MultiplayerChessScreen());
+                          Get.to(const ChessBoardScreen());
                         } else {
                           Get.to(const LoginScreen());
                         }
