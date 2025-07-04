@@ -1,7 +1,7 @@
 import 'package:dynamochess/screens/chess.dart';
 import 'package:dynamochess/screens/grid_screen.dart';
 import 'package:dynamochess/screens/login_screen.dart';
-import 'package:dynamochess/screens/multiplayer.dart';
+
 import 'package:dynamochess/screens/off_line_chess.dart';
 import 'package:dynamochess/screens/online_play.dart';
 import 'package:dynamochess/screens/playonline.dart';

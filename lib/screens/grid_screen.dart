@@ -49,43 +49,6 @@ List<List<String>> createPosition() {
   return position;
 }
 
-void createPositionfirst(data) {
-  print(data);
-  // Create a 10x10 board filled with empty strings
-
-  // Setup pawns
-  // for (int i = 0; i < 10; i++) {
-  //   position[1][i] = 'bp'; // Black pawns (now at row 1)
-  //   position[8][i] = 'wp'; // White pawns (now at row 8)
-  // }
-
-  // // Setup black pieces (now at row 0)
-  // position[0][0] = 'br'; // Rook
-  // position[0][1] = 'bn'; // Knight
-  // position[0][2] = 'bb'; // Bishop
-  // position[0][3] = 'bm'; // missile
-  // position[0][4] = 'bq'; // Queen
-  // position[0][5] = 'bk'; // King
-  // position[0][6] = 'bm'; // missile
-  // position[0][7] = 'bb'; // Bishop
-  // position[0][8] = 'bn'; // Knight
-  // position[0][9] = 'br'; // Rook
-
-  // // Setup white pieces (now at row 9)
-  // position[9][0] = 'wr'; // Rook
-  // position[9][1] = 'wn'; // Knight
-  // position[9][2] = 'wb'; // Bishop
-  // position[9][3] = 'wm'; // missile
-  // position[9][4] = 'wq'; // Queen
-  // position[9][5] = 'wk'; // King
-  // position[9][6] = 'wm'; // missile
-  // position[9][7] = 'wb'; // Bishop
-  // position[9][8] = 'wn'; // Knight
-  // position[9][9] = 'wr'; // Rook
-
-  // return position;
-}
-
 const Map<String, String> pieceImages = {
   'bp': 'assets/ducpices/BLACK/bp2.png',
   'br': 'assets/ducpices/BLACK/br2.png',
@@ -223,7 +186,7 @@ class _GridScreenState extends State<GridScreen> {
 
     socket?.on('createPosition', (data) {
       final List<dynamic> initialBoard = data['createPosition'];
-      print("initialBoard ${initialBoard}");
+      // print("initialBoard ${initialBoard}");
       if (initialBoard == null) {
         setState(() {
           // showboard = false;
@@ -264,10 +227,34 @@ class _GridScreenState extends State<GridScreen> {
 
     socket?.on('receive_boardData', (data) {
       final List<dynamic> newPositionData = data['data']['newPosition'];
+      print("newPositionData ${newPositionData}");
       // final String receivedPlayerId = data['playerId']; // Not directly used for board update
       // final String receivedPlayerColor = data['playerColour']; // Not directly used for board update
 
       setState(() {
+        if (newPositionData != null && newPositionData.isNotEmpty) {
+          // final List<dynamic> latestBoardData =
+          //     data['allBoardData'].last['newPosition'];
+
+          // print('latestBoardData: $latestBoardData');
+
+          // Safely convert latestBoardData to List<List<String>>
+          position = List.generate(
+            newPositionData.length,
+            (i) {
+              final row = newPositionData[newPositionData.length - 1 - i];
+              if (row is List) {
+                return List<String>.generate(row.length, (j) {
+                  final cell = row[j];
+                  return cell == null ? '' : cell.toString();
+                });
+              } else {
+                return List.filled(10, '');
+              }
+            },
+          );
+        }
+        print(" position $position");
         isGameAborted = false;
         isRoomLeft = false;
         winData = null;
@@ -293,32 +280,52 @@ class _GridScreenState extends State<GridScreen> {
     });
 
     socket?.on('updatedRoom', (data) {
-      print("updatedRoom");
-      print('Updated Room: data[' "allBoardData" ']: ${data['allBoardData']}');
-      //setState(() {
-      // roomId = data['_id'];
-      // players = List<Map<String, dynamic>>.from(data['players']);
-      // moveList = List<String>.from(data['moveList'] ?? []);
-      // timer1 = _convertSecondsToMinutes(data['timer1'] ?? 0);
-      // timer2 = _convertSecondsToMinutes(data['timer2'] ?? 0);
+      //  print("updatedRoom $data");
+      // print('Updated Room: allBoardData: ${data['allBoardData']}');
 
-      // // Update board if allBoardData is available and not empty
-      // if (data['allBoardData'] != null && data['allBoardData'].isNotEmpty) {
-      //   final List<dynamic> latestBoardData =
-      //       data['allBoardData'].last['newPosition'];
-      //   if (players.isNotEmpty && _currentUserDetail != null) {
-      //     final currentPlayerColor = players.firstWhere(
-      //         (p) => p['playerId'] == _currentUserDetail!.id,
-      //         orElse: () => {'colour': 'w'})['colour'];
+      setState(() {
+        roomId = data['_id'];
+        players = List<Map<String, dynamic>>.from(data['players']);
+        moveList = List<String>.from(data['moveList'] ?? []);
+        //timer1 = _convertSecondsToMinutes(data['timer1'] ?? 0);
+        // timer2 = _convertSecondsToMinutes(data['timer2'] ?? 0);
+        showboard = true;
+        if (data['allBoardData'] != null && data['allBoardData'].isNotEmpty) {
+          final List<dynamic> latestBoardData =
+              data['allBoardData'].last['newPosition'];
 
-      //     if (currentPlayerColor == 'b') {
-      //       board = _convertBackendBoard(latestBoardData, reverse: true);
-      //     } else {
-      //       board = _convertBackendBoard(latestBoardData, reverse: false);
-      //     }
-      //   }
-      // }
-      // });
+          //  print('latestBoardData: $latestBoardData');
+
+          // Safely convert latestBoardData to List<List<String>>
+          position = List.generate(
+            latestBoardData.length,
+            (i) {
+              final row = latestBoardData[latestBoardData.length - 1 - i];
+              if (row is List) {
+                return List<String>.generate(row.length, (j) {
+                  final cell = row[j];
+                  return cell == null ? '' : cell.toString();
+                });
+              } else {
+                return List.filled(10, '');
+              }
+            },
+          );
+
+          // if (players.isNotEmpty && _currentUserDetail != null) {
+          //   final currentPlayerColor = players.firstWhere(
+          //     (p) => p['playerId'] == _currentUserDetail!.id,
+          //     orElse: () => {'colour': 'w'},
+          //   )['colour'];
+
+          //   if (currentPlayerColor == 'b') {
+          //     board = _convertBackendBoard(latestBoardData, reverse: true);
+          //   } else {
+          //     board = _convertBackendBoard(latestBoardData, reverse: false);
+          //   }
+          // }
+        }
+      });
     });
 
     socket?.on('startGame', (data) {
@@ -486,6 +493,11 @@ class _GridScreenState extends State<GridScreen> {
         // Useful for move navigation, but `receive_boardData` handles current state
         print('Received all board data history.');
       });
+
+      // socket?.emit('leaveRoom', {
+      //   "roomId": roomId,
+      //   "playerId": _currentUserDetail!.id,
+      // });
 
       // socket?.on('errorOccured', (data) {
       //   toastInfo('Error: $data');
@@ -811,42 +823,47 @@ class _GridScreenState extends State<GridScreen> {
           if (isValidMove)
             tileColor = Colors.lightGreenAccent; // Highlight valid moves
 
-          return GestureDetector(
-            onTap: () {
-              if (piece.isNotEmpty && piece[0] == (isWhiteTurn ? 'w' : 'b')) {
-                // If a piece of the current player's color is tapped, select it
-                setState(() {
-                  selectedRow = row;
-                  selectedCol = col;
-                  calculateValidMoves(row, col); // Calculate its valid moves
-                });
-              } else if (selectedRow != null &&
-                  selectedCol != null &&
-                  validMoves[row][col]) {
-                // If a piece is selected and the tapped tile is a valid move, move the piece
-                movePiece(selectedRow!, selectedCol!, row, col);
-              } else {
-                // If tapped on an empty square, an opponent's piece, or an invalid move, deselect
-                setState(() {
-                  selectedRow = null;
-                  selectedCol = null;
-                  resetValidMoves();
-                });
-              }
-            },
-            child: Stack(
-              children: [
-                Container(color: tileColor), // Background color for the tile
-                if (piece.isNotEmpty && pieceImages.containsKey(piece))
-                  Center(
-                    child: Image.asset(
-                      pieceImages[piece]!,
-                      fit: BoxFit.contain,
-                    ),
+          return showboard
+              ? GestureDetector(
+                  onTap: () {
+                    if (piece.isNotEmpty &&
+                        piece[0] == (isWhiteTurn ? 'w' : 'b')) {
+                      // If a piece of the current player's color is tapped, select it
+                      setState(() {
+                        selectedRow = row;
+                        selectedCol = col;
+                        calculateValidMoves(
+                            row, col); // Calculate its valid moves
+                      });
+                    } else if (selectedRow != null &&
+                        selectedCol != null &&
+                        validMoves[row][col]) {
+                      // If a piece is selected and the tapped tile is a valid move, move the piece
+                      movePiece(selectedRow!, selectedCol!, row, col);
+                    } else {
+                      // If tapped on an empty square, an opponent's piece, or an invalid move, deselect
+                      setState(() {
+                        selectedRow = null;
+                        selectedCol = null;
+                        resetValidMoves();
+                      });
+                    }
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                          color: tileColor), // Background color for the tile
+                      if (piece.isNotEmpty && pieceImages.containsKey(piece))
+                        Center(
+                          child: Image.asset(
+                            pieceImages[piece]!,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
-          );
+                )
+              : null;
         },
       ),
     );

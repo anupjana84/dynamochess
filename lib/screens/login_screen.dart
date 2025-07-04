@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
       prefs.setString('countryIcon', userData['countryIcon']);
       prefs.setString('country', userData['country']);
       prefs.setInt('dynamoCoin', userData['dynamoCoin']);
-      prefs.setDouble('Rating', userData['Rating']);
+      // prefs.setDouble('Rating', userData['Rating']);
       prefs.setString('token', userData['token']);
 
       Get.snackbar("Success", "Login successful!");
