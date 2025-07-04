@@ -1,15 +1,45 @@
 import 'package:dynamochess/models/user_details.dart';
 import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 void toastInfo(String message) {
   // Replace with your actual toast/snackbar implementation
 
   // Example using ScaffoldMessenger (requires a BuildContext)
   // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
+
+class Position {
+  final int row;
+  final int col;
+
+  Position(this.row, this.col);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Position &&
+          runtimeType == other.runtimeType &&
+          row == other.row &&
+          col == other.col;
+
+  @override
+  int get hashCode => row.hashCode ^ col.hashCode;
+
+  // New getter to convert to algebraic notation
+  String get algebraic {
+    if (row < 0 || row >= 10 || col < 0 || col >= 10) {
+      return 'Invalid'; // Should not happen with valid game logic
+    }
+    // 'a' for col 0, 'b' for col 1, etc.
+    final colChar = String.fromCharCode('a'.codeUnitAt(0) + col);
+    // For a 10x10 board, row 0 (top) is rank 10, row 9 (bottom) is rank 1
+    final rowNum = 10 - row;
+    return '$colChar$rowNum';
+  }
 }
 
 List<List<String>> createPosition() {
@@ -78,9 +108,10 @@ class _GridScreenState extends State<GridScreen> {
   int? selectedRow;
   int? selectedCol;
   bool isWhiteTurn = true;
-  IO.Socket? socket;
+  io.Socket? socket;
 
   //
+  Position? selectedPosition;
   bool startGame = false;
   String timer1 = '00:00';
   String timer2 = '00:00';
@@ -126,7 +157,6 @@ class _GridScreenState extends State<GridScreen> {
     position = createPosition();
     _loadUserData().then((_) {
       if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
-        ;
         _connectSocket();
         setState(() {
           gameStatus = 'Initializing game...';
@@ -150,7 +180,7 @@ class _GridScreenState extends State<GridScreen> {
 
   void _connectSocket() {
     // Replace with your actual backend URL
-    socket = IO.io(ApiList.baseUrl, <String, dynamic>{
+    socket = io.io(ApiList.baseUrl, <String, dynamic>{
       'transports': ['websocket', 'polling'],
       'autoConnect': false,
       'reconnection': true,
@@ -160,7 +190,7 @@ class _GridScreenState extends State<GridScreen> {
     socket?.connect();
 
     socket?.onConnect((_) {
-      print('Connected to Socket.IO');
+      debugPrint('Connected to Socket.IO');
       if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
         _joinRoom();
       } else {
@@ -187,14 +217,8 @@ class _GridScreenState extends State<GridScreen> {
     socket?.on('createPosition', (data) {
       final List<dynamic> initialBoard = data['createPosition'];
       // print("initialBoard ${initialBoard}");
-      if (initialBoard == null) {
-        setState(() {
-          // showboard = false;
-        });
-      } else {
-        // showboard = true;
-        // position = createPositionfirst(initialBoard);
-      }
+      // showboard = true;
+      // position = createPositionfirst(initialBoard);
       // final String opponentPlayerId = data['positions'][0]['playerId']; // This is not directly used for board setup here
 
       setState(() {
@@ -227,34 +251,34 @@ class _GridScreenState extends State<GridScreen> {
 
     socket?.on('receive_boardData', (data) {
       final List<dynamic> newPositionData = data['data']['newPosition'];
-      print("newPositionData ${newPositionData}");
+      debugPrint("newPositionData $newPositionData");
       // final String receivedPlayerId = data['playerId']; // Not directly used for board update
       // final String receivedPlayerColor = data['playerColour']; // Not directly used for board update
 
       setState(() {
-        if (newPositionData != null && newPositionData.isNotEmpty) {
-          // final List<dynamic> latestBoardData =
-          //     data['allBoardData'].last['newPosition'];
+        // if (newPositionData != null && newPositionData.isNotEmpty) {
+        //   // final List<dynamic> latestBoardData =
+        //   //     data['allBoardData'].last['newPosition'];
 
-          // print('latestBoardData: $latestBoardData');
+        //   // print('latestBoardData: $latestBoardData');
 
-          // Safely convert latestBoardData to List<List<String>>
-          position = List.generate(
-            newPositionData.length,
-            (i) {
-              final row = newPositionData[newPositionData.length - 1 - i];
-              if (row is List) {
-                return List<String>.generate(row.length, (j) {
-                  final cell = row[j];
-                  return cell == null ? '' : cell.toString();
-                });
-              } else {
-                return List.filled(10, '');
-              }
-            },
-          );
-        }
-        print(" position $position");
+        //   // Safely convert latestBoardData to List<List<String>>
+        //   position = List.generate(
+        //     newPositionData.length,
+        //     (i) {
+        //       final row = newPositionData[newPositionData.length - 1 - i];
+        //       if (row is List) {
+        //         return List<String>.generate(row.length, (j) {
+        //           final cell = row[j];
+        //           return cell == null ? '' : cell.toString();
+        //         });
+        //       } else {
+        //         return List.filled(10, '');
+        //       }
+        //     },
+        //   );
+        // }
+        debugPrint(" position $position");
         isGameAborted = false;
         isRoomLeft = false;
         winData = null;
@@ -265,16 +289,15 @@ class _GridScreenState extends State<GridScreen> {
         rematchRequested = false;
 
         // Determine if the board needs to be reversed for the current user
-        if (players.isNotEmpty && _currentUserDetail != null) {
-          final currentPlayerColor = players.firstWhere(
-              (p) => p['playerId'] == _currentUserDetail!.id,
-              orElse: () => {'colour': 'w'})['colour'];
-
-          if (currentPlayerColor == 'b') {
-            // board = _convertBackendBoard(newPositionData, reverse: true);
-          } else {
-            //  board = _convertBackendBoard(newPositionData, reverse: false);
-          }
+        if (newPositionData.isNotEmpty) {
+          bool isCurrentUserBlack = players.isNotEmpty &&
+              players.any((p) =>
+                  p['playerId'] == _currentUserDetail?.id &&
+                  p['colour'] == 'w');
+          // print("isCurrentUserBlack $isCurrentUserBlack");
+          position = _convertBackendBoard(newPositionData,
+              reverse: !isCurrentUserBlack);
+          isWhiteTurn = !isWhiteTurn;
         }
       });
     });
@@ -287,44 +310,21 @@ class _GridScreenState extends State<GridScreen> {
         roomId = data['_id'];
         players = List<Map<String, dynamic>>.from(data['players']);
         moveList = List<String>.from(data['moveList'] ?? []);
-        //timer1 = _convertSecondsToMinutes(data['timer1'] ?? 0);
-        // timer2 = _convertSecondsToMinutes(data['timer2'] ?? 0);
-        showboard = true;
+
         if (data['allBoardData'] != null && data['allBoardData'].isNotEmpty) {
           final List<dynamic> latestBoardData =
               data['allBoardData'].last['newPosition'];
 
-          //  print('latestBoardData: $latestBoardData');
+          bool isCurrentUserBlack = players.isNotEmpty &&
+              players.any((p) =>
+                  p['playerId'] == _currentUserDetail?.id &&
+                  p['colour'] == 'w');
 
-          // Safely convert latestBoardData to List<List<String>>
-          position = List.generate(
-            latestBoardData.length,
-            (i) {
-              final row = latestBoardData[latestBoardData.length - 1 - i];
-              if (row is List) {
-                return List<String>.generate(row.length, (j) {
-                  final cell = row[j];
-                  return cell == null ? '' : cell.toString();
-                });
-              } else {
-                return List.filled(10, '');
-              }
-            },
-          );
-
-          // if (players.isNotEmpty && _currentUserDetail != null) {
-          //   final currentPlayerColor = players.firstWhere(
-          //     (p) => p['playerId'] == _currentUserDetail!.id,
-          //     orElse: () => {'colour': 'w'},
-          //   )['colour'];
-
-          //   if (currentPlayerColor == 'b') {
-          //     board = _convertBackendBoard(latestBoardData, reverse: true);
-          //   } else {
-          //     board = _convertBackendBoard(latestBoardData, reverse: false);
-          //   }
-          // }
+          position = _convertBackendBoard(latestBoardData,
+              reverse: isCurrentUserBlack);
         }
+
+        showboard = true;
       });
     });
 
@@ -562,15 +562,23 @@ class _GridScreenState extends State<GridScreen> {
 
   void printBoardState() {
     print("Current Board State:");
+    print("[");
     for (int i = 0; i < 10; i++) {
-      String row = "";
+      String row = "  [";
+      List<String> pieces = [];
       for (int j = 0; j < 10; j++) {
         String piece = position[i][j];
-        row += piece.isEmpty ? ".. " : "${piece} ";
+        pieces.add(piece.isEmpty ? "''" : "'$piece'");
       }
+      // Split into two lines of 5 pieces each for better readability
+      String firstHalf = pieces.sublist(0, 5).join(', ');
+      String secondHalf = pieces.sublist(5).join(', ');
+      row += "$firstHalf,";
+      row += "\n      $secondHalf";
+      row += i < 9 ? "]," : "]";
       print(row);
     }
-    print(""); // Empty line for separation
+    print("]");
   }
 
   void calculateValidMoves(int row, int col) {
@@ -782,6 +790,7 @@ class _GridScreenState extends State<GridScreen> {
   }
 
   void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
+    print("Moving piece from ($fromRow, $fromCol) to ($toRow, $toCol)");
     setState(() {
       position[toRow][toCol] = position[fromRow][fromCol];
       position[fromRow][fromCol] = '';
@@ -789,9 +798,58 @@ class _GridScreenState extends State<GridScreen> {
       selectedRow = null; // Deselect piece
       selectedCol = null; // Deselect piece
       resetValidMoves(); // Clear valid moves highlights
+      selectedPosition = Position(toRow, toCol);
     });
-    print("Piece moved from ($fromRow, $fromCol) to ($toRow, $toCol)");
+    print(
+        "Moving piece from ${toAlgebraicNotation(fromRow, fromCol)} to ${toAlgebraicNotation(toRow, toCol)}");
     printBoardState(); // Print the updated board state to console
+  }
+
+  String toAlgebraicNotation(int row, int col) {
+    // Convert column to letter (0-9 -> a-j)
+    String columnLetter = String.fromCharCode('a'.codeUnitAt(0) + col);
+
+    // Convert row to number (0-9 -> 10-1)
+    // Since row 0 is the "first rank" (like standard chess)
+    int rowNumber = 10 - row;
+
+    return '$columnLetter$rowNumber';
+  }
+
+  Position fromAlgebraicNotation(String notation) {
+    if (notation.length < 2) return Position(-1, -1); // Invalid
+
+    // Get column (letter)
+    String colChar = notation.substring(0, 1).toLowerCase();
+    int col = colChar.codeUnitAt(0) - 'a'.codeUnitAt(0);
+
+    // Get row (number)
+    int rowNumber = int.tryParse(notation.substring(1)) ?? 0;
+    int row = 10 - rowNumber;
+
+    return Position(row, col);
+  }
+
+  List<List<String>> _convertBackendBoard(List<dynamic> boardData,
+      {bool reverse = false}) {
+    int size = boardData.length;
+    List<List<String>> convertedBoard =
+        List.generate(size, (_) => List.filled(size, ''));
+
+    for (int i = 0; i < size; i++) {
+      List row = boardData[i];
+      for (int j = 0; j < size; j++) {
+        String piece = row[j]?.toString() ?? '';
+        convertedBoard[i][j] = piece;
+      }
+    }
+
+    if (reverse) {
+      // Flip rows so the board appears from black's perspective
+      convertedBoard = convertedBoard.reversed.map((row) => [...row]).toList();
+    }
+
+    return convertedBoard.cast<List<String>>();
   }
 
   @override
