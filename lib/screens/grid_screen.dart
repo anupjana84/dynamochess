@@ -111,10 +111,28 @@ class _GridScreenState extends State<GridScreen> {
   io.Socket? socket;
 
   //
+  var timer1;
+  var timer2;
+
+  // Booleans
+  bool isSound = true;
+  bool isNavigation = true;
+  bool gameAborted = false;
+  bool leaveRoom = false;
+  bool leave = false;
+
+  // Lists
+  List<dynamic> players = [];
+
+  // Strings
+  String playernextTurn = "";
+  String playernextId = "";
+
+  var newBoardData = [];
+  var movePosition = '';
+
   Position? selectedPosition;
   bool startGame = false;
-  String timer1 = '00:00';
-  String timer2 = '00:00';
 
   String playerNextTurnColor = ''; // 'w' or 'b'
   String playerNextId = '';
@@ -126,7 +144,7 @@ class _GridScreenState extends State<GridScreen> {
   bool rematchRequested = false;
   bool takebackRequested = false;
   List<String> moveList = [];
-  List<Map<String, dynamic>> players = [];
+
   String? gameStatus;
   bool showboard = false;
   String? roomId;
@@ -256,29 +274,6 @@ class _GridScreenState extends State<GridScreen> {
       // final String receivedPlayerColor = data['playerColour']; // Not directly used for board update
 
       setState(() {
-        // if (newPositionData != null && newPositionData.isNotEmpty) {
-        //   // final List<dynamic> latestBoardData =
-        //   //     data['allBoardData'].last['newPosition'];
-
-        //   // print('latestBoardData: $latestBoardData');
-
-        //   // Safely convert latestBoardData to List<List<String>>
-        //   position = List.generate(
-        //     newPositionData.length,
-        //     (i) {
-        //       final row = newPositionData[newPositionData.length - 1 - i];
-        //       if (row is List) {
-        //         return List<String>.generate(row.length, (j) {
-        //           final cell = row[j];
-        //           return cell == null ? '' : cell.toString();
-        //         });
-        //       } else {
-        //         return List.filled(10, '');
-        //       }
-        //     },
-        //   );
-        // }
-        debugPrint(" position $position");
         isGameAborted = false;
         isRoomLeft = false;
         winData = null;
@@ -294,34 +289,107 @@ class _GridScreenState extends State<GridScreen> {
               players.any((p) =>
                   p['playerId'] == _currentUserDetail?.id &&
                   p['colour'] == 'w');
-          // print("isCurrentUserBlack $isCurrentUserBlack");
+          print("isCurrentUserBlack $isCurrentUserBlack");
           position = _convertBackendBoard(newPositionData,
-              reverse: !isCurrentUserBlack);
-          isWhiteTurn = !isWhiteTurn;
+              reverse: isCurrentUserBlack);
+          isWhiteTurn = true;
         }
       });
     });
 
     socket?.on('updatedRoom', (data) {
-      //  print("updatedRoom $data");
-      // print('Updated Room: allBoardData: ${data['allBoardData']}');
+      // print("updatedRoom $data");
+      print('Updated Room: allBoardData: ${data['allBoardData']}');
+      // roomId = data['_id'];
+      // List<dynamic>? playersData = data['players'];
+      // print("playersData $playersData");
+      // List<dynamic>? newMoveList = data['moveList'];
+      // print("newMoveList $newMoveList");
+      // List<dynamic>? allBoardData = data['allBoardData'];
+      // print("allBoardData $allBoardData");
+      // List<List<dynamic>> newPosition = [];
+      // if (allBoardData != null) {
+      //   newPosition = allBoardData.map((item) {
+      //     List<dynamic> pos = item['newPosition'] ?? [];
+      //     return List<dynamic>.from(pos); // Copy list
+      //   }).toList();
+      // }
+      // print("newPosition $newPosition");
+      // String? nextPlayerColor = data['nextPlayerColor'];
+      // int timer1InSeconds = data['timer1'] ?? 0;
+      // int timer2InSeconds = data['timer2'] ?? 0;
+
+      // print("timer1InSeconds $timer1InSeconds");
+      // print("timer2InSeconds $timer2InSeconds");
+      // print("nextPlayerColor $nextPlayerColor");
+
+      // if (newPosition.isNotEmpty &&
+      //     playersData != null &&
+      //     playersData.length >= 2) {
+      //   var player1 = playersData[0];
+      //   var player2 = playersData[1];
+
+      //   String? userId =
+      //       _currentUserDetail?.id; // Replace with actual user ID getter
+
+      //   bool isCurrentUser(dynamic player) {
+      //     return player['playerId'] == userId;
+      //   }
+
+      //   // Determine board update logic based on color and current user
+      //   if (player1['colour'] == "b") {
+      //     if (isCurrentUser(player1)) {
+      //       // Player 1 (Black) is current user
+      //       List<List<dynamic>> reversePosition = newPosition
+      //           .map((item) => List<dynamic>.from(item.reversed))
+      //           .toList();
+
+      //       final List<dynamic> latestBoardData =
+      //           data['allBoardData'].last['newPosition'];
+
+      //       print("reversePosition hhh: $reversePosition");
+      //       position = _convertBackendBoard(latestBoardData, reverse: true);
+      //       // dispatch(setPlayerId(player1['playerId']));
+      //       // dispatch(UpdateBoard(reversePosition, newMoveList, nextPlayerColor));
+      //     } else if (isCurrentUser(player2) && player2['colour'] == "w") {
+      //       // Player 2 (White) is current user
+      //       //  dispatch(UpdateBoard(newPosition, newMoveList, nextPlayerColor));
+      //     }
+      //   } else {
+      //     // Player 1 is white
+      //     if (isCurrentUser(player1)) {
+      //       // dispatch(UpdateBoard(newPosition, newMoveList, nextPlayerColor));
+      //     } else if (isCurrentUser(player2) && player2['colour'] == "b") {
+      //       List<List<dynamic>> reversePosition = newPosition
+      //           .map((item) => List<dynamic>.from(item.reversed))
+      //           .toList();
+      //       final List<dynamic> latestBoardData =
+      //           data['allBoardData'].last['newPosition'];
+      //       print("reversePosition ggg: $reversePosition");
+      //       position = _convertBackendBoard(reversePosition, reverse: false);
+      //       // dispatch(setPlayerId(player2['playerId']));
+      //       //dispatch(UpdateBoard(reversePosition, newMoveList, nextPlayerColor));
+      //     }
+      //   }
+      // }
 
       setState(() {
-        roomId = data['_id'];
         players = List<Map<String, dynamic>>.from(data['players']);
         moveList = List<String>.from(data['moveList'] ?? []);
 
         if (data['allBoardData'] != null && data['allBoardData'].isNotEmpty) {
           final List<dynamic> latestBoardData =
               data['allBoardData'].last['newPosition'];
+          print("object $latestBoardData");
 
           bool isCurrentUserBlack = players.isNotEmpty &&
               players.any((p) =>
                   p['playerId'] == _currentUserDetail?.id &&
                   p['colour'] == 'w');
-
+          print("isCurrentUserBlack $isCurrentUserBlack");
           position = _convertBackendBoard(latestBoardData,
               reverse: isCurrentUserBlack);
+          isWhiteTurn = isCurrentUserBlack;
         }
 
         showboard = true;
@@ -350,8 +418,8 @@ class _GridScreenState extends State<GridScreen> {
 
       socket?.on('nextPlayerTurn', (data) {
         setState(() {
-          //  playerNextTurnColor = data['playerColour'];
-          //  playerNextId = data['playerId'];
+          playerNextTurnColor = data['playerColour'];
+          playerNextId = data['playerId'];
           //  gameStatus =
           // '${playerNextTurnColor == 'w' ? 'White' : 'Black'}\'s turn';
         });
@@ -560,25 +628,20 @@ class _GridScreenState extends State<GridScreen> {
     validMoves = List.generate(10, (_) => List.filled(10, false));
   }
 
-  void printBoardState() {
+  List<List<String>> printBoardState() {
     print("Current Board State:");
-    print("[");
+    List<List<String>> boardState = [];
+
     for (int i = 0; i < 10; i++) {
-      String row = "  [";
-      List<String> pieces = [];
+      List<String> row = [];
       for (int j = 0; j < 10; j++) {
         String piece = position[i][j];
-        pieces.add(piece.isEmpty ? "''" : "'$piece'");
+        row.add(piece); // Add each piece directly
       }
-      // Split into two lines of 5 pieces each for better readability
-      String firstHalf = pieces.sublist(0, 5).join(', ');
-      String secondHalf = pieces.sublist(5).join(', ');
-      row += "$firstHalf,";
-      row += "\n      $secondHalf";
-      row += i < 9 ? "]," : "]";
-      print(row);
+      boardState.add(row); // Add the row to the board
     }
-    print("]");
+
+    return boardState;
   }
 
   void calculateValidMoves(int row, int col) {
@@ -794,15 +857,37 @@ class _GridScreenState extends State<GridScreen> {
     setState(() {
       position[toRow][toCol] = position[fromRow][fromCol];
       position[fromRow][fromCol] = '';
-      isWhiteTurn = !isWhiteTurn; // Toggle turn
+      // isWhiteTurn = isWhiteTurn; // Toggle turn
       selectedRow = null; // Deselect piece
       selectedCol = null; // Deselect piece
       resetValidMoves(); // Clear valid moves highlights
       selectedPosition = Position(toRow, toCol);
+      final move = toAlgebraicNotation(fromRow, fromCol);
+      final boardd = printBoardState();
+
+      newBoardData = boardd;
+      movePosition = move;
     });
-    print(
-        "Moving piece from ${toAlgebraicNotation(fromRow, fromCol)} to ${toAlgebraicNotation(toRow, toCol)}");
-    printBoardState(); // Print the updated board state to console
+    if (socket != null && roomId != null && _currentUserDetail != null) {
+      // print("newBoardData ${newBoardData} movePosition ${movePosition}");
+      // List<List<dynamic>> reversePosition = newBoardData
+      //     .map((item) => item.reversed.toList())
+      //     .toList()
+      //     .cast<List<dynamic>>();
+      final ddddd = printBoardState().reversed.toList();
+
+      print("reversePosition ${ddddd}");
+
+      socket?.emit('boardUpdate', {
+        'roomId': roomId,
+        'boardData': {"newPosition": ddddd},
+        'playerId': _currentUserDetail!.id,
+        'move': movePosition,
+      });
+    }
+    // print(
+    //     "Moving piece ${newBoardData} ${movePosition} from ${toAlgebraicNotation(fromRow, fromCol)} to ${toAlgebraicNotation(toRow, toCol)}");
+    // // printBoardState(); // Print the updated board state to console
   }
 
   String toAlgebraicNotation(int row, int col) {
