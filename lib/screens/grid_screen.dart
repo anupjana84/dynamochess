@@ -126,11 +126,12 @@ class _GridScreenState extends State<GridScreen> {
 
   // Strings
   String playernextTurn = "";
-  String playernextId = "";
+  // String playernextId = "";
+  String? nextPlayerColor;
 
   var newBoardData = [];
   var movePosition = '';
-
+  // String? playerId
   Position? selectedPosition;
   bool startGame = false;
 
@@ -269,7 +270,7 @@ class _GridScreenState extends State<GridScreen> {
 
     socket?.on('receive_boardData', (data) {
       final List<dynamic> newPositionData = data['data']['newPosition'];
-      debugPrint("newPositionData $newPositionData");
+      print("newPositionData $data");
       // final String receivedPlayerId = data['playerId']; // Not directly used for board update
       // final String receivedPlayerColor = data['playerColour']; // Not directly used for board update
 
@@ -282,6 +283,7 @@ class _GridScreenState extends State<GridScreen> {
         threefoldMessage = null;
         takebackRequested = false;
         rematchRequested = false;
+        playerId = data['playerId'];
 
         // Determine if the board needs to be reversed for the current user
         if (newPositionData.isNotEmpty) {
@@ -290,9 +292,31 @@ class _GridScreenState extends State<GridScreen> {
                   p['playerId'] == _currentUserDetail?.id &&
                   p['colour'] == 'w');
           print("isCurrentUserBlack $isCurrentUserBlack");
-          position = _convertBackendBoard(newPositionData,
-              reverse: isCurrentUserBlack);
-          isWhiteTurn = true;
+          // for bottom white
+
+          // position = _convertBackendBoard(newPositionData,
+          //     reverse: isCurrentUserBlack);
+          // isWhiteTurn = true;
+
+          // for bottom white
+
+          // for bottom black
+          // position = _convertBackendBoard(newPositionData,
+          //     reverse: !isCurrentUserBlack);
+          // isWhiteTurn = false;
+          //for bottom black
+
+          if (isCurrentUserBlack) {
+            print("yes");
+            position = _convertBackendBoard(newPositionData,
+                reverse: isCurrentUserBlack);
+            isWhiteTurn = true;
+          } else {
+            print("not");
+            position = _convertBackendBoard(newPositionData,
+                reverse: !isCurrentUserBlack);
+            isWhiteTurn = false;
+          }
         }
       });
     });
@@ -374,6 +398,7 @@ class _GridScreenState extends State<GridScreen> {
       // }
 
       setState(() {
+        nextPlayerColor = data['nextPlayerColor'];
         players = List<Map<String, dynamic>>.from(data['players']);
         moveList = List<String>.from(data['moveList'] ?? []);
 
@@ -387,9 +412,27 @@ class _GridScreenState extends State<GridScreen> {
                   p['playerId'] == _currentUserDetail?.id &&
                   p['colour'] == 'w');
           print("isCurrentUserBlack $isCurrentUserBlack");
-          position = _convertBackendBoard(latestBoardData,
-              reverse: isCurrentUserBlack);
-          isWhiteTurn = isCurrentUserBlack;
+          //for bottom white
+          // position = _convertBackendBoard(latestBoardData,
+          //     reverse: isCurrentUserBlack);
+          // isWhiteTurn = isCurrentUserBlack;
+          //for bottom white
+
+          //for bottom black
+          // position = _convertBackendBoard(latestBoardData,
+          //     reverse: isCurrentUserBlack);
+          // isWhiteTurn = false;
+          //for bottom black
+
+          if (_currentUserDetail!.id == playerNextId) {
+            position = _convertBackendBoard(latestBoardData,
+                reverse: isCurrentUserBlack);
+            isWhiteTurn = isCurrentUserBlack;
+          } else {
+            position = _convertBackendBoard(latestBoardData,
+                reverse: isCurrentUserBlack);
+            isWhiteTurn = false;
+          }
         }
 
         showboard = true;
@@ -417,6 +460,7 @@ class _GridScreenState extends State<GridScreen> {
       });
 
       socket?.on('nextPlayerTurn', (data) {
+        print(data);
         setState(() {
           playerNextTurnColor = data['playerColour'];
           playerNextId = data['playerId'];
@@ -650,6 +694,7 @@ class _GridScreenState extends State<GridScreen> {
     if (piece.isEmpty) return;
 
     bool isWhite = piece[0] == 'w';
+    _currentUserDetail!.id == playerNextId ? isWhite = true : isWhite = false;
     String pieceType = piece.substring(1);
 
     switch (pieceType) {
@@ -869,12 +914,16 @@ class _GridScreenState extends State<GridScreen> {
       movePosition = move;
     });
     if (socket != null && roomId != null && _currentUserDetail != null) {
-      // print("newBoardData ${newBoardData} movePosition ${movePosition}");
-      // List<List<dynamic>> reversePosition = newBoardData
-      //     .map((item) => item.reversed.toList())
-      //     .toList()
-      //     .cast<List<dynamic>>();
       final ddddd = printBoardState().reversed.toList();
+      final ddddd1 = printBoardState();
+      //form bottom white
+//  final ddddd = printBoardState().reversed.toList();
+      //form bottom white
+
+      // for black
+      // final ddddd =  printBoardState().reversed.toList();
+
+      // for black
 
       print("reversePosition ${ddddd}");
 
@@ -969,8 +1018,10 @@ class _GridScreenState extends State<GridScreen> {
           return showboard
               ? GestureDetector(
                   onTap: () {
-                    if (piece.isNotEmpty &&
-                        piece[0] == (isWhiteTurn ? 'w' : 'b')) {
+                    if (_currentUserDetail!.id == playerNextId &&
+                        piece.isNotEmpty &&
+                        (piece[0] == 'w' && playerNextTurnColor == 'w' ||
+                            piece[0] == 'b' && playerNextTurnColor == 'b')) {
                       // If a piece of the current player's color is tapped, select it
                       setState(() {
                         selectedRow = row;
