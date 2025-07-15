@@ -3,8 +3,8 @@ import 'package:dynamochess/screens/grid_screen.dart';
 import 'package:dynamochess/screens/login_screen.dart';
 
 import 'package:dynamochess/screens/off_line_chess.dart';
-import 'package:dynamochess/screens/online_play.dart';
-import 'package:dynamochess/screens/playonline.dart';
+
+import 'package:dynamochess/screens/playonline1.dart';
 import 'package:dynamochess/screens/register_screen.dart';
 import 'package:dynamochess/widgets/bacground.dart';
 import 'package:flutter/material.dart';
@@ -27,8 +27,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _playOffline() {
-    // Get.to(const OffLineChessScreen());
-    Get.to(const GridScreen());
+    Get.to(const OffLineChessScreen());
+    //
   }
 
   static Future<void> _logout() async {
@@ -88,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: () async {
                         bool isLoggedIn = await hasToken();
                         if (isLoggedIn) {
-                          Get.to(const ChessBoardScreen());
+                          Get.to(const GridScreen());
                         } else {
                           Get.to(const LoginScreen());
                         }
@@ -130,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       'Puzzles',
                       Icons.extension,
                       onPressed: () {
+                        //Get.to(const GridScreen());
                         // Add your onPressed logic here
                       },
                     ),
@@ -151,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         'With Friends',
                         Icons.people,
                         onPressed: () {
+                          // Get.to(const ChessBoardScreen());
                           Get.snackbar(
                             "With Friends",
                             "You have selected With Friends mode!",

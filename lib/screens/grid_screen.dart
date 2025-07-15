@@ -111,8 +111,8 @@ class _GridScreenState extends State<GridScreen> {
   io.Socket? socket;
 
   //
-  var timer1;
-  var timer2;
+  String timer1 = '00:00';
+  String timer2 = '00:00';
 
   // Booleans
   bool isSound = true;
@@ -122,7 +122,7 @@ class _GridScreenState extends State<GridScreen> {
   bool leave = false;
 
   // Lists
-  List<dynamic> players = [];
+  List<Map<String, dynamic>> players = [];
 
   // Strings
   String playernextTurn = "";
@@ -144,10 +144,10 @@ class _GridScreenState extends State<GridScreen> {
   bool threefoldStatus = false;
   bool rematchRequested = false;
   bool takebackRequested = false;
-  List<String> moveList = [];
+  List<dynamic> moveList = [];
 
   String? gameStatus;
-  bool showboard = false;
+  bool showboard = true;
   String? roomId;
   bool isMessageDisabled = false;
   bool isPopupDisabled = false; // For the "Please wait for opponent" popup
@@ -188,6 +188,13 @@ class _GridScreenState extends State<GridScreen> {
         });
       }
     });
+  }
+
+  String _convertSecondsToMinutes(int totalSeconds) {
+    int minutes = totalSeconds ~/ 60;
+    int seconds = totalSeconds % 60;
+    String formattedSeconds = seconds < 10 ? '0$seconds' : '$seconds';
+    return '$minutes:$formattedSeconds';
   }
 
   Future<void> _loadUserData() async {
@@ -235,44 +242,13 @@ class _GridScreenState extends State<GridScreen> {
 
     socket?.on('createPosition', (data) {
       final List<dynamic> initialBoard = data['createPosition'];
-      // print("initialBoard ${initialBoard}");
-      // showboard = true;
-      // position = createPositionfirst(initialBoard);
-      // final String opponentPlayerId = data['positions'][0]['playerId']; // This is not directly used for board setup here
 
-      setState(() {
-        //startGame = true;
-        // isPopupDisabled = true; // Hide "Please wait" popup
-        // Set the current player ID based on who is 'w' or 'b'
-        // This logic needs to match the backend's assignment of 'w' and 'b'
-        // if (players.isNotEmpty && _currentUserDetail != null) {
-        // Here, we assume 'players' list is populated correctly and contains the color for the current user
-        // final currentPlayerAssignedColor = players.firstWhere(
-        //    (p) => p['playerId'] == _currentUserDetail!.id,
-        //   orElse: () => {'colour': 'w'})['colour'];
-
-        // The backend sends the board from white's perspective.
-        // If current user is black, reverse the board for display.
-        //  if (currentPlayerAssignedColor == 'b') {
-        //   board = _convertBackendBoard(initialBoard, reverse: true);
-        //  } else {
-        //   board = _convertBackendBoard(initialBoard, reverse: false);
-        // }
-        //    }
-        // Initialize playerNextId and playerNextTurnColor based on the start of the game
-        // Usually, white starts, so 'w' and the ID of the white player
-        // playerNextId = players.firstWhere((p) => p['colour'] == 'w',
-        //         orElse: () => {})['playerId'] ??
-        //     '';
-        // playerNextTurnColor = 'w';
-      });
+      setState(() {});
     });
 
     socket?.on('receive_boardData', (data) {
       final List<dynamic> newPositionData = data['data']['newPosition'];
-      print("newPositionData $data");
-      // final String receivedPlayerId = data['playerId']; // Not directly used for board update
-      // final String receivedPlayerColor = data['playerColour']; // Not directly used for board update
+      print("data ${data}");
 
       setState(() {
         isGameAborted = false;
@@ -320,98 +296,41 @@ class _GridScreenState extends State<GridScreen> {
         }
       });
     });
-
+    socket?.on("moveList", (data) {
+      print("object $data");
+      setState(() {
+        moveList = data;
+      });
+    });
+    socket?.emit('abortGame', {
+      'roomId': roomId,
+      'playerId': _currentUserDetail?.id,
+    });
     socket?.on('updatedRoom', (data) {
-      // print("updatedRoom $data");
-      print('Updated Room: allBoardData: ${data['allBoardData']}');
-      // roomId = data['_id'];
-      // List<dynamic>? playersData = data['players'];
-      // print("playersData $playersData");
-      // List<dynamic>? newMoveList = data['moveList'];
-      // print("newMoveList $newMoveList");
-      // List<dynamic>? allBoardData = data['allBoardData'];
-      // print("allBoardData $allBoardData");
-      // List<List<dynamic>> newPosition = [];
-      // if (allBoardData != null) {
-      //   newPosition = allBoardData.map((item) {
-      //     List<dynamic> pos = item['newPosition'] ?? [];
-      //     return List<dynamic>.from(pos); // Copy list
-      //   }).toList();
-      // }
-      // print("newPosition $newPosition");
-      // String? nextPlayerColor = data['nextPlayerColor'];
-      // int timer1InSeconds = data['timer1'] ?? 0;
-      // int timer2InSeconds = data['timer2'] ?? 0;
-
-      // print("timer1InSeconds $timer1InSeconds");
-      // print("timer2InSeconds $timer2InSeconds");
-      // print("nextPlayerColor $nextPlayerColor");
-
-      // if (newPosition.isNotEmpty &&
-      //     playersData != null &&
-      //     playersData.length >= 2) {
-      //   var player1 = playersData[0];
-      //   var player2 = playersData[1];
-
-      //   String? userId =
-      //       _currentUserDetail?.id; // Replace with actual user ID getter
-
-      //   bool isCurrentUser(dynamic player) {
-      //     return player['playerId'] == userId;
-      //   }
-
-      //   // Determine board update logic based on color and current user
-      //   if (player1['colour'] == "b") {
-      //     if (isCurrentUser(player1)) {
-      //       // Player 1 (Black) is current user
-      //       List<List<dynamic>> reversePosition = newPosition
-      //           .map((item) => List<dynamic>.from(item.reversed))
-      //           .toList();
-
-      //       final List<dynamic> latestBoardData =
-      //           data['allBoardData'].last['newPosition'];
-
-      //       print("reversePosition hhh: $reversePosition");
-      //       position = _convertBackendBoard(latestBoardData, reverse: true);
-      //       // dispatch(setPlayerId(player1['playerId']));
-      //       // dispatch(UpdateBoard(reversePosition, newMoveList, nextPlayerColor));
-      //     } else if (isCurrentUser(player2) && player2['colour'] == "w") {
-      //       // Player 2 (White) is current user
-      //       //  dispatch(UpdateBoard(newPosition, newMoveList, nextPlayerColor));
-      //     }
-      //   } else {
-      //     // Player 1 is white
-      //     if (isCurrentUser(player1)) {
-      //       // dispatch(UpdateBoard(newPosition, newMoveList, nextPlayerColor));
-      //     } else if (isCurrentUser(player2) && player2['colour'] == "b") {
-      //       List<List<dynamic>> reversePosition = newPosition
-      //           .map((item) => List<dynamic>.from(item.reversed))
-      //           .toList();
-      //       final List<dynamic> latestBoardData =
-      //           data['allBoardData'].last['newPosition'];
-      //       print("reversePosition ggg: $reversePosition");
-      //       position = _convertBackendBoard(reversePosition, reverse: false);
-      //       // dispatch(setPlayerId(player2['playerId']));
-      //       //dispatch(UpdateBoard(reversePosition, newMoveList, nextPlayerColor));
-      //     }
-      //   }
-      // }
+      print("updatedRoom $data");
 
       setState(() {
         nextPlayerColor = data['nextPlayerColor'];
         players = List<Map<String, dynamic>>.from(data['players']);
-        moveList = List<String>.from(data['moveList'] ?? []);
+        timer1 = _convertSecondsToMinutes(data['timer1'] ?? 0);
+        timer2 = _convertSecondsToMinutes(data['timer2'] ?? 0);
+        // moveList = List<String>.from(data['moveList'] ?? []);
+
+        if (players.length > 1) {
+          startGame = true;
+          isPopupDisabled = true;
+        }
 
         if (data['allBoardData'] != null && data['allBoardData'].isNotEmpty) {
           final List<dynamic> latestBoardData =
               data['allBoardData'].last['newPosition'];
-          print("object $latestBoardData");
+          // print("object $latestBoardData");
 
           bool isCurrentUserBlack = players.isNotEmpty &&
               players.any((p) =>
                   p['playerId'] == _currentUserDetail?.id &&
                   p['colour'] == 'w');
-          print("isCurrentUserBlack $isCurrentUserBlack");
+          // print("isCurrentUserBlack $isCurrentUserBlack");
           //for bottom white
           // position = _convertBackendBoard(latestBoardData,
           //     reverse: isCurrentUserBlack);
@@ -442,20 +361,20 @@ class _GridScreenState extends State<GridScreen> {
     socket?.on('startGame', (data) {
       print(data);
       setState(() {
-        // startGame = data['start'];
-        // isPopupDisabled = true; // Hide "Please wait" popup
+        startGame = data['start'];
+        isPopupDisabled = true;
         // });
       });
 
       socket?.on('timer1', (data) {
         setState(() {
-          //   timer1 = data;
+          timer1 = data;
         });
       });
 
       socket?.on('timer2', (data) {
         setState(() {
-          // timer2 = data;
+          timer2 = data;
         });
       });
 
@@ -673,7 +592,6 @@ class _GridScreenState extends State<GridScreen> {
   }
 
   List<List<String>> printBoardState() {
-    print("Current Board State:");
     List<List<String>> boardState = [];
 
     for (int i = 0; i < 10; i++) {
@@ -898,7 +816,8 @@ class _GridScreenState extends State<GridScreen> {
   }
 
   void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
-    print("Moving piece from ($fromRow, $fromCol) to ($toRow, $toCol)");
+    bool isCapture = position[toRow][toCol].isNotEmpty;
+    // print("Moving piece from ($fromRow, $fromCol) to ($toRow, $toCol)");
     setState(() {
       position[toRow][toCol] = position[fromRow][fromCol];
       position[fromRow][fromCol] = '';
@@ -907,11 +826,12 @@ class _GridScreenState extends State<GridScreen> {
       selectedCol = null; // Deselect piece
       resetValidMoves(); // Clear valid moves highlights
       selectedPosition = Position(toRow, toCol);
-      final move = toAlgebraicNotation(fromRow, fromCol);
+      movePosition = generateMoveNotation(fromRow, fromCol, toRow, toCol,
+          isCapture: isCapture);
       final boardd = printBoardState();
 
       newBoardData = boardd;
-      movePosition = move;
+      movePosition = movePosition;
     });
     if (socket != null && roomId != null && _currentUserDetail != null) {
       final ddddd = printBoardState().reversed.toList();
@@ -939,15 +859,15 @@ class _GridScreenState extends State<GridScreen> {
     // // printBoardState(); // Print the updated board state to console
   }
 
-  String toAlgebraicNotation(int row, int col) {
-    // Convert column to letter (0-9 -> a-j)
-    String columnLetter = String.fromCharCode('a'.codeUnitAt(0) + col);
+  String generateMoveNotation(int fromRow, int fromCol, int toRow, int toCol,
+      {bool isCapture = false}) {
+    String from = Position(fromRow, fromCol).algebraic;
+    String to = Position(toRow, toCol).algebraic;
 
-    // Convert row to number (0-9 -> 10-1)
-    // Since row 0 is the "first rank" (like standard chess)
-    int rowNumber = 10 - row;
-
-    return '$columnLetter$rowNumber';
+    if (isCapture) {
+      return '${from[0]}x$to';
+    }
+    return to;
   }
 
   Position fromAlgebraicNotation(String notation) {
@@ -988,6 +908,38 @@ class _GridScreenState extends State<GridScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentPlayerIsWhite = players.isNotEmpty &&
+        players.any((p) =>
+            p['playerId'] == _currentUserDetail?.id && p['colour'] == 'w');
+
+    // Determine whose timer to display at the top/bottom based on current player
+    String topTimer = currentPlayerIsWhite ? timer2 : timer1;
+    String bottomTimer = currentPlayerIsWhite ? timer1 : timer2;
+
+    // Determine player info for top and bottom display
+    Map<String, dynamic>? topPlayer;
+    Map<String, dynamic>? bottomPlayer;
+
+    if (players.length == 2) {
+      if (currentPlayerIsWhite) {
+        topPlayer =
+            players.firstWhere((p) => p['colour'] == 'b', orElse: () => {});
+        bottomPlayer =
+            players.firstWhere((p) => p['colour'] == 'w', orElse: () => {});
+      } else {
+        topPlayer =
+            players.firstWhere((p) => p['colour'] == 'w', orElse: () => {});
+        bottomPlayer =
+            players.firstWhere((p) => p['colour'] == 'b', orElse: () => {});
+      }
+    } else if (players.length == 1) {
+      // If only one player, assume they are the current user and display them at the bottom
+      bottomPlayer = players[0];
+      topPlayer = {'name': 'Waiting...', 'countryicon': null, 'Rating': 0.0};
+    } else {
+      topPlayer = {'name': 'Waiting...', 'countryicon': null, 'Rating': 0.0};
+      bottomPlayer = {'name': 'Waiting...', 'countryicon': null, 'Rating': 0.0};
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(isWhiteTurn ? 'White\'s Turn grid' : 'Black\'s Turn'),
@@ -995,71 +947,231 @@ class _GridScreenState extends State<GridScreen> {
         backgroundColor: Colors.blueGrey[900],
         foregroundColor: Colors.white,
       ),
-      body: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 10,
-        ),
-        itemCount: 100, // 10x10 board
-        itemBuilder: (context, index) {
-          int row = index ~/ 10;
-          int col = index % 10;
-          String piece = position[row][col];
-          bool isSelected = selectedRow == row && selectedCol == col;
-          bool isValidMove = validMoves[row][col];
+      body: Column(
+        children: [
+          _buildPlayerInfo(
+              topPlayer, topTimer, playerNextId == topPlayer['playerId']),
 
-          Color tileColor = (row + col) % 2 == 0
-              ? Colors.brown[300]!
-              : Colors.white; // Chessboard pattern
-          if (isSelected)
-            tileColor = Colors.yellowAccent; // Highlight selected piece
-          if (isValidMove)
-            tileColor = Colors.lightGreenAccent; // Highlight valid moves
+          LayoutBuilder(builder: (context, constraints) {
+            final boardDimension = constraints.maxWidth < constraints.maxHeight
+                ? constraints.maxWidth
+                : constraints.maxHeight;
+            final safeBoardDimension =
+                boardDimension <= 0 ? 300.0 : boardDimension;
+            return Center(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: safeBoardDimension,
+                    height: safeBoardDimension,
+                    child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 10,
+                      ),
+                      itemCount: 100, // 10x10 board
+                      itemBuilder: (context, index) {
+                        int row = index ~/ 10;
+                        int col = index % 10;
+                        String piece = position[row][col];
+                        bool isSelected =
+                            selectedRow == row && selectedCol == col;
+                        bool isValidMove = validMoves[row][col];
 
-          return showboard
-              ? GestureDetector(
-                  onTap: () {
-                    if (_currentUserDetail!.id == playerNextId &&
-                        piece.isNotEmpty &&
-                        (piece[0] == 'w' && playerNextTurnColor == 'w' ||
-                            piece[0] == 'b' && playerNextTurnColor == 'b')) {
-                      // If a piece of the current player's color is tapped, select it
-                      setState(() {
-                        selectedRow = row;
-                        selectedCol = col;
-                        calculateValidMoves(
-                            row, col); // Calculate its valid moves
-                      });
-                    } else if (selectedRow != null &&
-                        selectedCol != null &&
-                        validMoves[row][col]) {
-                      // If a piece is selected and the tapped tile is a valid move, move the piece
-                      movePiece(selectedRow!, selectedCol!, row, col);
-                    } else {
-                      // If tapped on an empty square, an opponent's piece, or an invalid move, deselect
-                      setState(() {
-                        selectedRow = null;
-                        selectedCol = null;
-                        resetValidMoves();
-                      });
-                    }
-                  },
-                  child: Stack(
-                    children: [
-                      Container(
-                          color: tileColor), // Background color for the tile
-                      if (piece.isNotEmpty && pieceImages.containsKey(piece))
-                        Center(
-                          child: Image.asset(
-                            pieceImages[piece]!,
-                            fit: BoxFit.contain,
+                        Color tileColor = (row + col) % 2 == 0
+                            ? const Color(0xFFDCDA5C)
+                            : Colors.green; // Chessboard pattern
+                        if (isSelected) {
+                          tileColor =
+                              Colors.yellowAccent; // Highlight selected piece
+                        }
+                        if (isValidMove) {
+                          tileColor =
+                              Colors.lightGreenAccent; // Highlight valid moves
+                        }
+
+                        return GestureDetector(
+                          onTap: () {
+                            if (_currentUserDetail!.id == playerNextId &&
+                                piece.isNotEmpty &&
+                                (piece[0] == 'w' &&
+                                        playerNextTurnColor == 'w' ||
+                                    piece[0] == 'b' &&
+                                        playerNextTurnColor == 'b')) {
+                              // If a piece of the current player's color is tapped, select it
+                              setState(() {
+                                selectedRow = row;
+                                selectedCol = col;
+                                calculateValidMoves(
+                                    row, col); // Calculate its valid moves
+                              });
+                            } else if (selectedRow != null &&
+                                selectedCol != null &&
+                                validMoves[row][col]) {
+                              // If a piece is selected and the tapped tile is a valid move, move the piece
+                              movePiece(selectedRow!, selectedCol!, row, col);
+                            } else {
+                              // If tapped on an empty square, an opponent's piece, or an invalid move, deselect
+                              setState(() {
+                                selectedRow = null;
+                                selectedCol = null;
+                                resetValidMoves();
+                              });
+                            }
+                          },
+                          child: Stack(
+                            children: [
+                              Container(
+                                  color:
+                                      tileColor), // Background color for the tile
+                              if (piece.isNotEmpty &&
+                                  pieceImages.containsKey(piece))
+                                Center(
+                                  child: Image.asset(
+                                    pieceImages[piece]!,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                            ],
                           ),
-                        ),
-                    ],
+                        );
+                      },
+                    ),
                   ),
-                )
-              : null;
-        },
+                  if (!startGame && !isPopupDisabled)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.black),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        players.length < 2
+                            ? 'Please Wait for an Opponent'
+                            : 'Please wait for your paired opponent \nfor this Round to join the board',
+                        textAlign: TextAlign.center,
+                        style:
+                            const TextStyle(color: Colors.black, fontSize: 16),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }),
+          _buildPlayerInfo(bottomPlayer, bottomTimer,
+              playerNextId == bottomPlayer['playerId']),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Move History:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                // Horizontal Scrollable Row of Moves
+                SizedBox(
+                  height: 40,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    shrinkWrap: true,
+                    itemCount: moveList.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        margin: const EdgeInsets.only(right: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${moveList[index]}',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          )
+          // _buildMoveHistory(),
+        ],
       ),
     );
+  }
+
+  Widget _buildPlayerInfo(
+      Map<String, dynamic>? player, String timer, bool isCurrentTurn) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.circle,
+                color: isCurrentTurn ? Colors.green : Colors.grey,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                player?['name'] ?? 'Anonymous',
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              if (player?['countryicon'] != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: Image.network(
+                    player!['countryicon'],
+                    width: 30,
+                    height: 20,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.flag), // Fallback
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(left: 16.0),
+                child: Text(
+                  'Rating: ${player?['Rating']?.toStringAsFixed(2) ?? '0'}',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          Text(
+            timer,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    socket?.off("playerWon");
+    socket?.off("JoinStatus");
+    socket?.off("timerIs60");
+    socket?.off("abort");
+    socket?.off("roomLeftPlayerId");
+    socket?.off("checkMate");
+    socket?.off("DrawStatus");
+    socket?.off("ThreeFold");
+    socket?.off("fiveFoldData");
+    socket?.off("receive_message");
+    socket?.off("rematchResponse");
+    socket?.off("rematch");
+    socket?.off("turnBackStatus");
+    socket?.off("allBoardData");
+    socket?.off("castingStatus");
+    socket?.disconnect();
+    super.dispose();
   }
 }

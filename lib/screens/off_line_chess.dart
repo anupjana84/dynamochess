@@ -1,6 +1,6 @@
 import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as io;
+
 import 'package:audioplayers/audioplayers.dart';
 
 // --- Enums ---
@@ -105,7 +105,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   Position? selectedPosition;
   List<Position> possibleMoves = [];
   String gameStatus = 'White\'s turn';
-  io.Socket? socket;
 
   // --- Move History related variables ---
   List<Move> moveHistory = [];
@@ -115,21 +114,6 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   void initState() {
     super.initState();
     _initializeBoard();
-    _connectSocket();
-  }
-
-  void _connectSocket() {
-    debugPrint("object");
-    socket = io.io(ApiList.baseUrl, <String, dynamic>{
-      'transports': ['websocket', 'polling'],
-      'autoConnect': false,
-      'reconnection': true,
-      'timeout': 20000,
-    });
-    socket?.connect();
-    socket?.onConnect((_) {
-      debugPrint('Connected to Socket.IO');
-    });
   }
 
   void _initializeBoard() {
@@ -941,6 +925,8 @@ class _OffLineChessScreenState extends State<OffLineChessScreen> {
   String getAlgebraicNotation(Move move) {
     final movingPiece = move.movedPiece;
     final capturedPiece = move.capturedPiece;
+    print("capturedPiece ${capturedPiece}");
+    print("movingPiece ${movingPiece}");
 
     String piecePrefix = '';
 
