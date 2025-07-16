@@ -15,8 +15,8 @@ void toastInfo(String message) {
 class Position {
   final int row;
   final int col;
-
-  Position(this.row, this.col);
+  final bool isBlackAtBottom;
+  Position(this.row, this.col, {this.isBlackAtBottom = false});
 
   @override
   bool operator ==(Object other) =>
@@ -37,7 +37,8 @@ class Position {
     // 'a' for col 0, 'b' for col 1, etc.
     final colChar = String.fromCharCode('a'.codeUnitAt(0) + col);
     // For a 10x10 board, row 0 (top) is rank 10, row 9 (bottom) is rank 1
-    final rowNum = 10 - row;
+    // final rowNum = 10 - row;
+    final rowNum = isBlackAtBottom ? row + 1 : 10 - row;
     return '$colChar$rowNum';
   }
 }
@@ -147,6 +148,7 @@ class _GridScreenState extends State<GridScreen> {
   List<dynamic> moveList = [];
 
   String? gameStatus;
+  String? pieceString;
   bool showboard = true;
   String? roomId;
   bool isMessageDisabled = false;
@@ -160,6 +162,7 @@ class _GridScreenState extends State<GridScreen> {
   bool showDrawConfirmation = false;
   bool showThreefoldConfirmation = false;
   bool timerIs60 = false;
+  bool currentPlayerIsWhite = false;
   //
   String? playerId;
   String? userName;
@@ -170,6 +173,35 @@ class _GridScreenState extends State<GridScreen> {
   List<List<bool>> validMoves =
       List.generate(10, (_) => List.filled(10, false));
   UserDetail? _currentUserDetail;
+  OverlayEntry? _overlayEntry;
+  final GlobalKey<_GridScreenState> gridKey = GlobalKey();
+
+  void _showPromotionMenu(int toRow, int toCol, String colorPrefix) {
+    final RenderBox gridBox = context.findRenderObject() as RenderBox;
+    final Size squareSize = Size(50, 50); // Approximate tile size
+
+    // Calculate position where the pawn is located
+    final Offset buttonTopLeft = gridBox.localToGlobal(Offset(
+      toCol * squareSize.width,
+      toRow * squareSize.height,
+    ));
+
+    final OverlayState overlayState = Overlay.of(context);
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: buttonTopLeft.dx,
+        top: buttonTopLeft.dy,
+        child: Material(
+          elevation: 8.0,
+          child: buildPromotionMenu(toRow, toCol, colorPrefix),
+        ),
+      ),
+    );
+
+    overlayState.insert(_overlayEntry!);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -267,7 +299,7 @@ class _GridScreenState extends State<GridScreen> {
               players.any((p) =>
                   p['playerId'] == _currentUserDetail?.id &&
                   p['colour'] == 'w');
-          print("isCurrentUserBlack $isCurrentUserBlack");
+          // print("isCurrentUserBlack $isCurrentUserBlack");
           // for bottom white
 
           // position = _convertBackendBoard(newPositionData,
@@ -281,14 +313,14 @@ class _GridScreenState extends State<GridScreen> {
           //     reverse: !isCurrentUserBlack);
           // isWhiteTurn = false;
           //for bottom black
-
+          currentPlayerIsWhite = !isCurrentUserBlack;
           if (isCurrentUserBlack) {
-            print("yes");
+            // print("yes");
             position = _convertBackendBoard(newPositionData,
                 reverse: isCurrentUserBlack);
             isWhiteTurn = true;
           } else {
-            print("not");
+            // print("not");
             position = _convertBackendBoard(newPositionData,
                 reverse: !isCurrentUserBlack);
             isWhiteTurn = false;
@@ -612,6 +644,7 @@ class _GridScreenState extends State<GridScreen> {
     if (piece.isEmpty) return;
 
     bool isWhite = piece[0] == 'w';
+    // bool isWhite = piece.startsWith('w');
     _currentUserDetail!.id == playerNextId ? isWhite = true : isWhite = false;
     String pieceType = piece.substring(1);
 
@@ -815,38 +848,44 @@ class _GridScreenState extends State<GridScreen> {
     }
   }
 
-  void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
+  void movePiece(int fromRow, int fromCol, int toRow, int toCol, String piece) {
     bool isCapture = position[toRow][toCol].isNotEmpty;
-    // print("Moving piece from ($fromRow, $fromCol) to ($toRow, $toCol)");
+
+    bool isBlackAtBottom = currentPlayerIsWhite;
+
     setState(() {
+      // Move the piece
       position[toRow][toCol] = position[fromRow][fromCol];
       position[fromRow][fromCol] = '';
-      // isWhiteTurn = isWhiteTurn; // Toggle turn
-      selectedRow = null; // Deselect piece
-      selectedCol = null; // Deselect piece
-      resetValidMoves(); // Clear valid moves highlights
-      selectedPosition = Position(toRow, toCol);
-      movePosition = generateMoveNotation(fromRow, fromCol, toRow, toCol,
-          isCapture: isCapture);
-      final boardd = printBoardState();
 
+      // Check if this is a pawn reaching the end
+      String movedPiece = position[toRow][toCol];
+
+      if (movedPiece == 'wp' && toRow == 0) {
+        _showPromotionDialog(context, toRow, toCol, 'w');
+      } else if (movedPiece == 'bp' && toRow == 9) {
+        _showPromotionDialog(context, toRow, toCol, 'b');
+      }
+
+      selectedRow = null;
+      selectedCol = null;
+      resetValidMoves();
+      selectedPosition = Position(toRow, toCol);
+      movePosition = generateMoveNotation(
+          fromRow,
+          fromCol,
+          toRow,
+          toCol,
+          isCapture: isCapture,
+          isBlackAtBottom: isBlackAtBottom,
+          piece);
+
+      final boardd = printBoardState();
       newBoardData = boardd;
-      movePosition = movePosition;
     });
+
     if (socket != null && roomId != null && _currentUserDetail != null) {
       final ddddd = printBoardState().reversed.toList();
-      final ddddd1 = printBoardState();
-      //form bottom white
-//  final ddddd = printBoardState().reversed.toList();
-      //form bottom white
-
-      // for black
-      // final ddddd =  printBoardState().reversed.toList();
-
-      // for black
-
-      print("reversePosition ${ddddd}");
-
       socket?.emit('boardUpdate', {
         'roomId': roomId,
         'boardData': {"newPosition": ddddd},
@@ -854,34 +893,110 @@ class _GridScreenState extends State<GridScreen> {
         'move': movePosition,
       });
     }
-    // print(
-    //     "Moving piece ${newBoardData} ${movePosition} from ${toAlgebraicNotation(fromRow, fromCol)} to ${toAlgebraicNotation(toRow, toCol)}");
-    // // printBoardState(); // Print the updated board state to console
   }
 
-  String generateMoveNotation(int fromRow, int fromCol, int toRow, int toCol,
-      {bool isCapture = false}) {
-    String from = Position(fromRow, fromCol).algebraic;
-    String to = Position(toRow, toCol).algebraic;
+  void _showPromotionDialog(
+      BuildContext context, int toRow, int toCol, String colorPrefix) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissal by tapping outside
+      builder: (context) {
+        return AlertDialog(
+          title: Text('$colorPrefix Promotion'),
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                icon: Image.asset(
+                  pieceImages['$colorPrefix' 'q']!,
+                  width: 50,
+                  height: 50,
+                ),
+                onPressed: () {
+                  setState(() {
+                    position[toRow][toCol] = '$colorPrefix' 'q';
+                  });
+                  Navigator.pop(context);
+                },
+                tooltip: 'Queen',
+              ),
+              IconButton(
+                icon: Image.asset(
+                  pieceImages['$colorPrefix' 'r']!,
+                  width: 50,
+                  height: 50,
+                ),
+                onPressed: () {
+                  setState(() {
+                    position[toRow][toCol] = '$colorPrefix' 'r';
+                  });
+                  Navigator.pop(context);
+                },
+                tooltip: 'Rook',
+              ),
+              IconButton(
+                icon: Image.asset(
+                  pieceImages['$colorPrefix' 'b']!,
+                  width: 50,
+                  height: 50,
+                ),
+                onPressed: () {
+                  setState(() {
+                    position[toRow][toCol] = '$colorPrefix' 'b';
+                  });
+                  Navigator.pop(context);
+                },
+                tooltip: 'Bishop',
+              ),
+              IconButton(
+                icon: Image.asset(
+                  pieceImages['$colorPrefix' 'n']!,
+                  width: 50,
+                  height: 50,
+                ),
+                onPressed: () {
+                  setState(() {
+                    position[toRow][toCol] = '$colorPrefix' 'n';
+                  });
+                  Navigator.pop(context);
+                },
+                tooltip: 'Knight',
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-    if (isCapture) {
-      return '${from[0]}x$to';
+  String generateMoveNotation(
+      int fromRow, int fromCol, int toRow, int toCol, piece,
+      {bool isCapture = false, required bool isBlackAtBottom}) {
+    // Add this parameter
+
+    String pp = '';
+    if (pieceString != null && pieceString!.isNotEmpty) {
+      final lastChar = pieceString!.characters.last;
+      pp = lastChar.toUpperCase();
     }
-    return to;
-  }
 
-  Position fromAlgebraicNotation(String notation) {
-    if (notation.length < 2) return Position(-1, -1); // Invalid
+    String from =
+        Position(fromRow, fromCol, isBlackAtBottom: isBlackAtBottom).algebraic;
+    String to =
+        Position(toRow, toCol, isBlackAtBottom: isBlackAtBottom).algebraic;
+    print("pp ${pp} $from $to");
+    if (isCapture) {
+      if (pp == 'P') {
+        return '${from[0]}x$to';
+      }
+      return '$pp${from[0]}x$to';
+    } else {
+      if (pp == 'P') {
+        return '$to';
+      }
 
-    // Get column (letter)
-    String colChar = notation.substring(0, 1).toLowerCase();
-    int col = colChar.codeUnitAt(0) - 'a'.codeUnitAt(0);
-
-    // Get row (number)
-    int rowNumber = int.tryParse(notation.substring(1)) ?? 0;
-    int row = 10 - rowNumber;
-
-    return Position(row, col);
+      return "${pp}$to";
+    }
   }
 
   List<List<String>> _convertBackendBoard(List<dynamic> boardData,
@@ -975,6 +1090,7 @@ class _GridScreenState extends State<GridScreen> {
                         int row = index ~/ 10;
                         int col = index % 10;
                         String piece = position[row][col];
+
                         bool isSelected =
                             selectedRow == row && selectedCol == col;
                         bool isValidMove = validMoves[row][col];
@@ -999,8 +1115,11 @@ class _GridScreenState extends State<GridScreen> {
                                         playerNextTurnColor == 'w' ||
                                     piece[0] == 'b' &&
                                         playerNextTurnColor == 'b')) {
+                              print(
+                                  "Selected piece at row: $row, col: $col, piece: $piece");
                               // If a piece of the current player's color is tapped, select it
                               setState(() {
+                                pieceString = piece;
                                 selectedRow = row;
                                 selectedCol = col;
                                 calculateValidMoves(
@@ -1009,8 +1128,14 @@ class _GridScreenState extends State<GridScreen> {
                             } else if (selectedRow != null &&
                                 selectedCol != null &&
                                 validMoves[row][col]) {
+                              String piece1 = position[row][col];
+                              print(
+                                  "Moved to row: $row, col: $col, captured: $piece1");
+
                               // If a piece is selected and the tapped tile is a valid move, move the piece
-                              movePiece(selectedRow!, selectedCol!, row, col);
+                              // movePiece(selectedRow!, selectedCol!, row, col);
+                              movePiece(
+                                  selectedRow!, selectedCol!, row, col, piece);
                             } else {
                               // If tapped on an empty square, an opponent's piece, or an invalid move, deselect
                               setState(() {
@@ -1173,5 +1298,50 @@ class _GridScreenState extends State<GridScreen> {
     socket?.off("castingStatus");
     socket?.disconnect();
     super.dispose();
+  }
+
+  Widget buildPromotionMenu(int toRow, int toCol, String colorPrefix) {
+    return PopupMenuButton<String>(
+      onSelected: (String result) {
+        setState(() {
+          position[toRow][toCol] = '$colorPrefix$result';
+        });
+      },
+      itemBuilder: (BuildContext context) => [
+        PopupMenuItem<String>(
+          value: 'q',
+          child: Image.asset(pieceImages['$colorPrefix' 'q']!),
+        ),
+        PopupMenuItem<String>(
+          value: 'r',
+          child: Image.asset(pieceImages['$colorPrefix' 'r']!),
+        ),
+        PopupMenuItem<String>(
+          value: 'b',
+          child: Image.asset(pieceImages['$colorPrefix' 'b']!),
+        ),
+        PopupMenuItem<String>(
+          value: 'n',
+          child: Image.asset(pieceImages['$colorPrefix' 'n']!),
+        ),
+      ],
+
+      offset: const Offset(0, -200), // Show the menu above the square
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+      ),
+      elevation: 8,
+      child: Container(
+        width: 40,
+        height: 40,
+        color: Colors.transparent,
+        child: const Center(
+          child: Text(
+            "Pawn Promotion",
+            style: TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ),
+      ),
+    );
   }
 }

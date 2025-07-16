@@ -1,3 +1,4 @@
+import 'package:dynamochess/screens/chee_n.dart';
 import 'package:dynamochess/screens/chess.dart';
 import 'package:dynamochess/screens/grid_screen.dart';
 import 'package:dynamochess/screens/login_screen.dart';
@@ -130,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       'Puzzles',
                       Icons.extension,
                       onPressed: () {
-                        //Get.to(const GridScreen());
+                        Get.to(const ChessnewScreen());
                         // Add your onPressed logic here
                       },
                     ),
