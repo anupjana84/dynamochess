@@ -153,6 +153,7 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
   int? selectedRow;
   int? selectedCol;
   List<String> moveHistory = [];
+  List<List<List<String>>> boardHistory = [];
 
   List<List<bool>> validMoves =
       List.generate(10, (_) => List.filled(10, false));
@@ -161,6 +162,7 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
   Position? blackKingPosition;
   bool isWhiteKingInCheck = false;
   bool isBlackKingInCheck = false;
+  int currentMoveIndex = -1;
 
   @override
   void initState() {
@@ -543,9 +545,42 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     }
   }
 
+  // void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
+  //   String piece = position[fromRow][fromCol];
+  //   String capturedPiece = position[toRow][toCol];
+
+  //   // Create move notation
+  //   Position fromPos =
+  //       Position(fromRow, fromCol, isBlackAtBottom: isBlackAtBottom);
+  //   Position toPos = Position(toRow, toCol, isBlackAtBottom: isBlackAtBottom);
+  //   String moveNotation = '${fromPos.algebraic}-${toPos.algebraic}';
+  //   if (capturedPiece.isNotEmpty) {
+  //     moveNotation += ' (captured ${capturedPiece.toUpperCase()})';
+  //   }
+
+  //   setState(() {
+  //     position[toRow][toCol] = piece;
+  //     position[fromRow][fromCol] = '';
+  //     selectedRow = null;
+  //     selectedCol = null;
+  //     resetValidMoves();
+  //     isWhiteTurn = !isWhiteTurn;
+  //     moveHistory.add(moveNotation);
+
+  //     // Check for check after the move
+  //     checkForCheck();
+  //   });
+  // }
   void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
-    String piece = position[fromRow][fromCol];
-    String capturedPiece = position[toRow][toCol];
+    // Create a deep copy of the current position
+    List<List<String>> newPosition =
+        position.map((row) => List<String>.from(row)).toList();
+
+    // Make the move on the copy
+    String piece = newPosition[fromRow][fromCol];
+    String capturedPiece = newPosition[toRow][toCol];
+    newPosition[toRow][toCol] = piece;
+    newPosition[fromRow][fromCol] = '';
 
     // Create move notation
     Position fromPos =
@@ -557,15 +592,54 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     }
 
     setState(() {
-      position[toRow][toCol] = piece;
-      position[fromRow][fromCol] = '';
+      position = newPosition;
       selectedRow = null;
       selectedCol = null;
       resetValidMoves();
       isWhiteTurn = !isWhiteTurn;
       moveHistory.add(moveNotation);
+      boardHistory.add(newPosition); // Store the new position
+      currentMoveIndex = -1; // Viewing latest position
 
-      // Check for check after the move
+      checkForCheck();
+    });
+  }
+
+  void viewMove(int index) {
+    setState(() {
+      currentMoveIndex = index;
+      position =
+          boardHistory[index].map((row) => List<String>.from(row)).toList();
+
+      // Update turn based on move index (even = white's turn next)
+      isWhiteTurn = (index % 2 == 0);
+
+      // Reset selection
+      selectedRow = null;
+      selectedCol = null;
+      resetValidMoves();
+
+      // Update king positions and check status
+      updateKingPositions();
+      checkForCheck();
+    });
+  }
+
+  void returnToCurrentPosition() {
+    if (currentMoveIndex == -1) return;
+
+    setState(() {
+      currentMoveIndex = -1;
+      position =
+          boardHistory.last.map((row) => List<String>.from(row)).toList();
+      isWhiteTurn = (moveHistory.length % 2 == 0);
+
+      // Reset selection
+      selectedRow = null;
+      selectedCol = null;
+      resetValidMoves();
+
+      updateKingPositions();
       checkForCheck();
     });
   }
@@ -804,29 +878,48 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
           // Move history
           if (moveHistory.isNotEmpty)
             Container(
-              height: 80,
+              height: 100,
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Last moves:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      const Text('Move History:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      if (currentMoveIndex != -1)
+                        TextButton(
+                          onPressed: returnToCurrentPosition,
+                          child: const Text('Return to Current'),
+                        ),
+                    ],
+                  ),
                   Expanded(
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: moveHistory.length,
                       itemBuilder: (context, index) {
-                        return Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '${index + 1}. ${moveHistory[index]}',
-                            style: const TextStyle(fontSize: 12),
+                        return GestureDetector(
+                          onTap: () => viewMove(index),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: currentMoveIndex == index
+                                  ? Colors.blue[200]
+                                  : Colors.grey[200],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${index + 1}. ${moveHistory[index]}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: currentMoveIndex == index
+                                    ? Colors.white
+                                    : Colors.black,
+                              ),
+                            ),
                           ),
                         );
                       },
