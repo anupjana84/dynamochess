@@ -1,4 +1,4 @@
-import 'package:dynamochess/screens/chee_n.dart';
+import 'package:dynamochess/screens/online/chee_n.dart';
 import 'package:dynamochess/screens/chess.dart';
 import 'package:dynamochess/screens/grid_screen.dart';
 import 'package:dynamochess/screens/login_screen.dart';

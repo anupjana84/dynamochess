@@ -23,7 +23,7 @@ class Position {
       return 'Invalid';
     }
     final colChar = String.fromCharCode('a'.codeUnitAt(0) + col);
-    final rowNum = isBlackAtBottom ? row + 1 : 10 - row;
+    final rowNum = row + 1; // Always use row + 1 for display
     return '$colChar$rowNum';
   }
 }
@@ -31,38 +31,73 @@ class Position {
 List<List<String>> createPosition({bool isBlackAtBottom = false}) {
   List<List<String>> position = List.generate(10, (_) => List.filled(10, ''));
 
-  // Always use standard positioning - the visual flip is handled in the display
-  // Black pieces always on rows 0-1, White pieces always on rows 8-9
+  if (isBlackAtBottom) {
+    // When black is at bottom: (0,0) is bottom-left, (9,9) is top-right
+    // Black pieces on bottom rows (0-1), White pieces on top rows (8-9)
 
-  // Place pawns
-  for (int i = 0; i < 10; i++) {
-    position[1][i] = 'bp'; // Black pawns on row 1
-    position[8][i] = 'wp'; // White pawns on row 8
+    // Place pawns
+    for (int i = 0; i < 10; i++) {
+      position[1][i] = 'bp'; // Black pawns on row 1
+      position[8][i] = 'wp'; // White pawns on row 8
+    }
+
+    // Black pieces on row 0 (bottom rank)
+    position[0][0] = 'br';
+    position[0][1] = 'bn';
+    position[0][2] = 'bb';
+    position[0][3] = 'bm';
+    position[0][4] = 'bq';
+    position[0][5] = 'bk';
+    position[0][6] = 'bm';
+    position[0][7] = 'bb';
+    position[0][8] = 'bn';
+    position[0][9] = 'br';
+
+    // White pieces on row 9 (top rank)
+    position[9][0] = 'wr';
+    position[9][1] = 'wn';
+    position[9][2] = 'wb';
+    position[9][3] = 'wm';
+    position[9][4] = 'wq';
+    position[9][5] = 'wk';
+    position[9][6] = 'wm';
+    position[9][7] = 'wb';
+    position[9][8] = 'wn';
+    position[9][9] = 'wr';
+  } else {
+    // When white is at bottom: (0,0) is bottom-left, (9,9) is top-right
+    // White pieces on bottom rows (0-1), Black pieces on top rows (8-9)
+
+    // Place pawns
+    for (int i = 0; i < 10; i++) {
+      position[1][i] = 'wp'; // White pawns on row 1
+      position[8][i] = 'bp'; // Black pawns on row 8
+    }
+
+    // White pieces on row 0 (bottom rank)
+    position[0][0] = 'wr';
+    position[0][1] = 'wn';
+    position[0][2] = 'wb';
+    position[0][3] = 'wm';
+    position[0][4] = 'wq';
+    position[0][5] = 'wk';
+    position[0][6] = 'wm';
+    position[0][7] = 'wb';
+    position[0][8] = 'wn';
+    position[0][9] = 'wr';
+
+    // Black pieces on row 9 (top rank)
+    position[9][0] = 'br';
+    position[9][1] = 'bn';
+    position[9][2] = 'bb';
+    position[9][3] = 'bm';
+    position[9][4] = 'bq';
+    position[9][5] = 'bk';
+    position[9][6] = 'bm';
+    position[9][7] = 'bb';
+    position[9][8] = 'bn';
+    position[9][9] = 'br';
   }
-
-  // Black pieces on row 0 (back rank)
-  position[0][0] = 'br';
-  position[0][1] = 'bn';
-  position[0][2] = 'bb';
-  position[0][3] = 'bm';
-  position[0][4] = 'bq';
-  position[0][5] = 'bk';
-  position[0][6] = 'bm';
-  position[0][7] = 'bb';
-  position[0][8] = 'bn';
-  position[0][9] = 'br';
-
-  // White pieces on row 9 (back rank)
-  position[9][0] = 'wr';
-  position[9][1] = 'wn';
-  position[9][2] = 'wb';
-  position[9][3] = 'wm';
-  position[9][4] = 'wq';
-  position[9][5] = 'wk';
-  position[9][6] = 'wm';
-  position[9][7] = 'wb';
-  position[9][8] = 'wn';
-  position[9][9] = 'wr';
 
   return position;
 }
@@ -122,16 +157,202 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
   List<List<bool>> validMoves =
       List.generate(10, (_) => List.filled(10, false));
 
+  Position? whiteKingPosition;
+  Position? blackKingPosition;
+  bool isWhiteKingInCheck = false;
+  bool isBlackKingInCheck = false;
+
   @override
   void initState() {
     super.initState();
     isBlackAtBottom = widget.isBlackAtBottom;
     position = createPosition(isBlackAtBottom: isBlackAtBottom);
     isWhiteTurn = true; // White always starts
+    updateKingPositions();
+    checkForCheck();
   }
 
   void resetValidMoves() {
     validMoves = List.generate(10, (_) => List.filled(10, false));
+  }
+
+  void updateKingPositions() {
+    whiteKingPosition = null;
+    blackKingPosition = null;
+
+    for (int row = 0; row < 10; row++) {
+      for (int col = 0; col < 10; col++) {
+        if (position[row][col] == 'wk') {
+          whiteKingPosition = Position(row, col);
+        } else if (position[row][col] == 'bk') {
+          blackKingPosition = Position(row, col);
+        }
+      }
+    }
+  }
+
+  bool isSquareUnderAttack(int row, int col, bool byWhite) {
+    // Check if a square is under attack by the specified color
+    for (int r = 0; r < 10; r++) {
+      for (int c = 0; c < 10; c++) {
+        String piece = position[r][c];
+        if (piece.isEmpty) continue;
+
+        bool isPieceWhite = piece.startsWith('w');
+        if (isPieceWhite != byWhite) continue;
+
+        // Temporarily calculate moves for this piece
+        List<List<bool>> tempValidMoves =
+            List.generate(10, (_) => List.filled(10, false));
+
+        switch (piece[1]) {
+          case 'p':
+            _calculatePawnAttacks(r, c, isPieceWhite, tempValidMoves);
+            break;
+          case 'r':
+            _calculateStraightAttacks(r, c, isPieceWhite, tempValidMoves);
+            break;
+          case 'n':
+            _calculateKnightAttacks(r, c, isPieceWhite, tempValidMoves);
+            break;
+          case 'b':
+            _calculateDiagonalAttacks(r, c, isPieceWhite, tempValidMoves);
+            break;
+          case 'q':
+            _calculateStraightAttacks(r, c, isPieceWhite, tempValidMoves);
+            _calculateDiagonalAttacks(r, c, isPieceWhite, tempValidMoves);
+            break;
+          case 'k':
+            _calculateKingAttacks(r, c, isPieceWhite, tempValidMoves);
+            break;
+          case 'm':
+            _calculateDiagonalAttacks(r, c, isPieceWhite, tempValidMoves);
+            _calculateKnightAttacks(r, c, isPieceWhite, tempValidMoves);
+            break;
+        }
+
+        if (tempValidMoves[row][col]) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void checkForCheck() {
+    updateKingPositions();
+
+    if (whiteKingPosition != null) {
+      isWhiteKingInCheck = isSquareUnderAttack(whiteKingPosition!.row,
+          whiteKingPosition!.col, false // attacked by black
+          );
+    }
+
+    if (blackKingPosition != null) {
+      isBlackKingInCheck = isSquareUnderAttack(blackKingPosition!.row,
+          blackKingPosition!.col, true // attacked by white
+          );
+    }
+  }
+
+  // Helper methods for attack calculations (similar to move calculations but only for attacks)
+  void _calculatePawnAttacks(
+      int row, int col, bool isWhite, List<List<bool>> attacks) {
+    int direction;
+
+    if (isBlackAtBottom) {
+      direction = isWhite ? -1 : 1;
+    } else {
+      direction = isWhite ? 1 : -1;
+    }
+
+    // Pawn attacks diagonally
+    for (int i = -1; i <= 1; i += 2) {
+      if (col + i >= 0 &&
+          col + i < 10 &&
+          row + direction >= 0 &&
+          row + direction < 10) {
+        attacks[row + direction][col + i] = true;
+      }
+    }
+  }
+
+  void _calculateStraightAttacks(
+      int row, int col, bool isWhite, List<List<bool>> attacks) {
+    // Horizontal attacks
+    for (int dCol in [-1, 1]) {
+      for (int c = col + dCol; c >= 0 && c < 10; c += dCol) {
+        attacks[row][c] = true;
+        if (position[row][c].isNotEmpty) break;
+      }
+    }
+
+    // Vertical attacks
+    for (int dRow in [-1, 1]) {
+      for (int r = row + dRow; r >= 0 && r < 10; r += dRow) {
+        attacks[r][col] = true;
+        if (position[r][col].isNotEmpty) break;
+      }
+    }
+  }
+
+  void _calculateDiagonalAttacks(
+      int row, int col, bool isWhite, List<List<bool>> attacks) {
+    List<List<int>> directions = [
+      [-1, -1],
+      [-1, 1],
+      [1, -1],
+      [1, 1]
+    ];
+
+    for (var dir in directions) {
+      int dRow = dir[0], dCol = dir[1];
+      for (int i = 1; i < 10; i++) {
+        int r = row + i * dRow;
+        int c = col + i * dCol;
+
+        if (r >= 0 && r < 10 && c >= 0 && c < 10) {
+          attacks[r][c] = true;
+          if (position[r][c].isNotEmpty) break;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  void _calculateKnightAttacks(
+      int row, int col, bool isWhite, List<List<bool>> attacks) {
+    List<List<int>> moves = [
+      [row - 2, col - 1],
+      [row - 2, col + 1],
+      [row - 1, col - 2],
+      [row - 1, col + 2],
+      [row + 1, col - 2],
+      [row + 1, col + 2],
+      [row + 2, col - 1],
+      [row + 2, col + 1],
+    ];
+
+    for (var move in moves) {
+      int r = move[0], c = move[1];
+      if (r >= 0 && r < 10 && c >= 0 && c < 10) {
+        attacks[r][c] = true;
+      }
+    }
+  }
+
+  void _calculateKingAttacks(
+      int row, int col, bool isWhite, List<List<bool>> attacks) {
+    for (int i = -1; i <= 1; i++) {
+      for (int j = -1; j <= 1; j++) {
+        if (i == 0 && j == 0) continue;
+        int r = row + i, c = col + j;
+        if (r >= 0 && r < 10 && c >= 0 && c < 10) {
+          attacks[r][c] = true;
+        }
+      }
+    }
   }
 
   void calculateValidMoves(int row, int col) {
@@ -169,10 +390,20 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
   }
 
   void calculatePawnMoves(int row, int col, bool isWhite) {
-    // Pawn movement is always the same regardless of board orientation
-    // White pawns move toward row 0, Black pawns move toward row 9
-    int direction = isWhite ? -1 : 1;
-    int startRow = isWhite ? 8 : 1;
+    // Pawn movement: pawns always move toward the enemy
+    // In our coordinate system (0,0) is bottom-left, (9,9) is top-right
+    int direction;
+    int startRow;
+
+    if (isBlackAtBottom) {
+      // Black at bottom: black pawns move up (+1), white pawns move down (-1)
+      direction = isWhite ? -1 : 1;
+      startRow = isWhite ? 8 : 1;
+    } else {
+      // White at bottom: white pawns move up (+1), black pawns move down (-1)
+      direction = isWhite ? 1 : -1;
+      startRow = isWhite ? 1 : 8;
+    }
 
     // Move forward
     if (row + direction >= 0 && row + direction < 10) {
@@ -333,6 +564,9 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
       resetValidMoves();
       isWhiteTurn = !isWhiteTurn;
       moveHistory.add(moveNotation);
+
+      // Check for check after the move
+      checkForCheck();
     });
   }
 
@@ -347,22 +581,44 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
       resetValidMoves();
       isWhiteTurn = true;
       moveHistory.clear();
+
+      // Reset check status
+      updateKingPositions();
+      checkForCheck();
     });
   }
 
-  Widget _buildPieceWidget(String piece) {
+  Widget _buildPieceWidget(String piece, int row, int col) {
     if (piece.isEmpty) return const SizedBox();
 
-    return Image.asset(
-      pieceImages[piece]!,
-      errorBuilder: (context, error, stackTrace) {
-        // Fallback to text symbols if image fails to load
-        return Text(
-          pieceSymbols[piece] ?? piece,
-          style: const TextStyle(fontSize: 24),
-        );
-      },
-    );
+    return Stack(alignment: Alignment.center, children: [
+      Image.asset(
+        pieceImages[piece]!,
+        errorBuilder: (context, error, stackTrace) {
+          // Fallback to text symbols if image fails to load
+          return Text(
+            pieceSymbols[piece] ?? piece,
+            style: const TextStyle(fontSize: 24),
+          );
+        },
+      ),
+      // Show coordinate for debugging
+      Positioned(
+        top: 2,
+        left: 2,
+        child: Container(
+          padding: const EdgeInsets.all(1),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: Text(
+            "$row,$col",
+            style: const TextStyle(fontSize: 8, color: Colors.black),
+          ),
+        ),
+      ),
+    ]);
   }
 
   Widget _buildBoard() {
@@ -384,29 +640,37 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
               ),
               itemCount: 100,
               itemBuilder: (context, index) {
-                // Calculate row and col based on board orientation
-                int displayRow, displayCol;
-                if (isBlackAtBottom) {
-                  // Flip the board: bottom-left becomes top-right
-                  displayRow = 9 - (index ~/ 10);
-                  displayCol = 9 - (index % 10);
-                } else {
-                  // Standard orientation
-                  displayRow = index ~/ 10;
-                  displayCol = index % 10;
-                }
+                // Convert GridView index to board coordinates
+                // GridView displays from top-left to bottom-right
+                int gridRow = index ~/ 10; // 0-9 from top to bottom
+                int gridCol = index % 10; // 0-9 from left to right
 
-                int row = displayRow;
-                int col = displayCol;
+                // Convert to internal position coordinates
+                // Internal array: (0,0) is always bottom-left conceptually
+                int row =
+                    9 - gridRow; // Flip vertically so (0,0) is bottom-left
+                int col = gridCol; // Keep horizontal as is
+
                 String piece = position[row][col];
                 bool isSelected = selectedRow == row && selectedCol == col;
                 bool isValidMove = validMoves[row][col];
 
-                Color tileColor = ((displayRow + displayCol) % 2 == 0)
+                // Checkerboard pattern based on grid position
+                Color tileColor = ((gridRow + gridCol) % 2 == 0)
                     ? const Color(0xFFDCDA5C)
                     : const Color(0xFF769656);
 
-                if (isSelected) {
+                // Check if this square contains a king in danger
+                bool isKingInDanger = false;
+                if (piece == 'wk' && isWhiteKingInCheck) {
+                  isKingInDanger = true;
+                } else if (piece == 'bk' && isBlackKingInCheck) {
+                  isKingInDanger = true;
+                }
+
+                if (isKingInDanger) {
+                  tileColor = Colors.red.withOpacity(0.8);
+                } else if (isSelected) {
                   tileColor = Colors.yellowAccent;
                 } else if (isValidMove) {
                   tileColor = Colors.lightGreenAccent;
@@ -455,7 +719,7 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
                     child: Stack(
                       children: [
                         if (piece.isNotEmpty)
-                          Center(child: _buildPieceWidget(piece)),
+                          Center(child: _buildPieceWidget(piece, row, col)),
                         if (isValidMove && piece.isEmpty)
                           Center(
                             child: Container(
@@ -467,6 +731,23 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
                               ),
                             ),
                           ),
+                        // Show algebraic notation in corner
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Container(
+                            padding: const EdgeInsets.all(1),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: Text(
+                              Position(row, col).algebraic,
+                              style: const TextStyle(
+                                  fontSize: 8, color: Colors.white),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -492,9 +773,30 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
           // Game status
           Container(
             padding: const EdgeInsets.all(8.0),
-            child: Text(
-              'Turn: ${isWhiteTurn ? 'White' : 'Black'}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            child: Column(
+              children: [
+                Text(
+                  'Turn: ${isWhiteTurn ? 'White' : 'Black'}',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                if (isWhiteKingInCheck)
+                  const Text(
+                    'White King in CHECK!',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold),
+                  ),
+                if (isBlackKingInCheck)
+                  const Text(
+                    'Black King in CHECK!',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold),
+                  ),
+              ],
             ),
           ),
           // Board
