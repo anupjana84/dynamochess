@@ -1,141 +1,19 @@
+import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
+import 'package:logger/web.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'position.dart';
+import 'helper.dart';
 
-class Position {
-  final int row;
-  final int col;
-  final bool isBlackAtBottom;
+import 'package:dynamochess/models/user_details.dart';
 
-  const Position(this.row, this.col, {this.isBlackAtBottom = false});
+var logger = Logger();
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Position &&
-          runtimeType == other.runtimeType &&
-          row == other.row &&
-          col == other.col;
-
-  @override
-  int get hashCode => row.hashCode ^ col.hashCode;
-
-  String get algebraic {
-    if (row < 0 || row >= 10 || col < 0 || col >= 10) {
-      return 'Invalid';
-    }
-    final colChar = String.fromCharCode('a'.codeUnitAt(0) + col);
-    final rowNum = row + 1; // Always use row + 1 for display
-    return '$colChar$rowNum';
-  }
+void toastInfo(String message) {
+  // Replace with your actual toast/snackbar implementation
+  debugPrint("Toast: $message");
 }
-
-List<List<String>> createPosition({bool isBlackAtBottom = false}) {
-  List<List<String>> position = List.generate(10, (_) => List.filled(10, ''));
-
-  if (isBlackAtBottom) {
-    // When black is at bottom: (0,0) is bottom-left, (9,9) is top-right
-    // Black pieces on bottom rows (0-1), White pieces on top rows (8-9)
-
-    // Place pawns
-    for (int i = 0; i < 10; i++) {
-      position[1][i] = 'bp'; // Black pawns on row 1
-      position[8][i] = 'wp'; // White pawns on row 8
-    }
-
-    // Black pieces on row 0 (bottom rank)
-    position[0][0] = 'br';
-    position[0][1] = 'bn';
-    position[0][2] = 'bb';
-    position[0][3] = 'bm';
-    position[0][4] = 'bq';
-    position[0][5] = 'bk';
-    position[0][6] = 'bm';
-    position[0][7] = 'bb';
-    position[0][8] = 'bn';
-    position[0][9] = 'br';
-
-    // White pieces on row 9 (top rank)
-    position[9][0] = 'wr';
-    position[9][1] = 'wn';
-    position[9][2] = 'wb';
-    position[9][3] = 'wm';
-    position[9][4] = 'wq';
-    position[9][5] = 'wk';
-    position[9][6] = 'wm';
-    position[9][7] = 'wb';
-    position[9][8] = 'wn';
-    position[9][9] = 'wr';
-  } else {
-    // When white is at bottom: (0,0) is bottom-left, (9,9) is top-right
-    // White pieces on bottom rows (0-1), Black pieces on top rows (8-9)
-
-    // Place pawns
-    for (int i = 0; i < 10; i++) {
-      position[1][i] = 'wp'; // White pawns on row 1
-      position[8][i] = 'bp'; // Black pawns on row 8
-    }
-
-    // White pieces on row 0 (bottom rank)
-    position[0][0] = 'wr';
-    position[0][1] = 'wn';
-    position[0][2] = 'wb';
-    position[0][3] = 'wm';
-    position[0][4] = 'wq';
-    position[0][5] = 'wk';
-    position[0][6] = 'wm';
-    position[0][7] = 'wb';
-    position[0][8] = 'wn';
-    position[0][9] = 'wr';
-
-    // Black pieces on row 9 (top rank)
-    position[9][0] = 'br';
-    position[9][1] = 'bn';
-    position[9][2] = 'bb';
-    position[9][3] = 'bm';
-    position[9][4] = 'bq';
-    position[9][5] = 'bk';
-    position[9][6] = 'bm';
-    position[9][7] = 'bb';
-    position[9][8] = 'bn';
-    position[9][9] = 'br';
-  }
-
-  return position;
-}
-
-// Fallback piece symbols for when images aren't available
-const Map<String, String> pieceSymbols = {
-  'bp': '♟',
-  'br': '♜',
-  'bn': '♞',
-  'bb': '♝',
-  'bq': '♛',
-  'bk': '♚',
-  'bm': '🚀',
-  'wp': '♙',
-  'wr': '♖',
-  'wn': '♘',
-  'wb': '♗',
-  'wq': '♕',
-  'wk': '♔',
-  'wm': '🚀',
-};
-
-const Map<String, String> pieceImages = {
-  'bp': 'assets/ducpices/BLACK/bp2.png',
-  'br': 'assets/ducpices/BLACK/br2.png',
-  'bn': 'assets/ducpices/BLACK/bn.png',
-  'bb': 'assets/ducpices/BLACK/bb.png',
-  'bq': 'assets/ducpices/BLACK/bq2.png',
-  'bk': 'assets/ducpices/BLACK/bk2.png',
-  'bm': 'assets/ducpices/BLACK/bm.png',
-  'wp': 'assets/ducpices/WHITE/wp2.png',
-  'wr': 'assets/ducpices/WHITE/wr2.png',
-  'wn': 'assets/ducpices/WHITE/wn.png',
-  'wb': 'assets/ducpices/WHITE/wb.png',
-  'wq': 'assets/ducpices/WHITE/wq2.png',
-  'wk': 'assets/ducpices/WHITE/wk2.png',
-  'wm': 'assets/ducpices/WHITE/wm.png',
-};
 
 class ChessnewScreen extends StatefulWidget {
   final bool isBlackAtBottom;
@@ -155,23 +33,528 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
   List<String> moveHistory = [];
   List<List<List<String>>> boardHistory = [];
 
+  // Socket and game state
+  io.Socket? socket;
+  String timer1 = '00:00';
+  String timer2 = '00:00';
+  bool isSound = true;
+  bool isNavigation = true;
+  bool gameAborted = false;
+  bool leaveRoom = false;
+  bool leave = false;
+  List<Map<String, dynamic>> players = [];
+  String playernextTurn = "";
+  String? nextPlayerColor;
+  var newBoardData = [];
+  var movePosition = '';
+  Position? selectedPosition;
+  bool startGame = false;
+  String playerNextTurnColor = '';
+  String playerNextId = '';
+  Map<String, dynamic>? winData;
+  String? drawMessage;
+  bool drawStatus = false;
+  String? threefoldMessage;
+  bool threefoldStatus = false;
+  bool rematchRequested = false;
+  bool takebackRequested = false;
+  List<dynamic> moveList = [];
+  String? gameStatus;
+  String? pieceString;
+  bool showboard = true;
+  String? roomId;
+  bool isMessageDisabled = false;
+  bool isPopupDisabled = false;
+  bool newGameTriggered = false;
+  bool isGameAborted = false;
+  bool isRoomLeft = false;
+  bool showLeaveConfirmation = false;
+  bool showRematchConfirmation = false;
+  bool showTakebackConfirmation = false;
+  bool showDrawConfirmation = false;
+  bool showThreefoldConfirmation = false;
+  bool timerIs60 = false;
+  bool currentPlayerIsWhite = false;
+  UserDetail? _currentUserDetail;
+  String? playerId;
   List<List<bool>> validMoves =
       List.generate(10, (_) => List.filled(10, false));
-
   Position? whiteKingPosition;
   Position? blackKingPosition;
   bool isWhiteKingInCheck = false;
   bool isBlackKingInCheck = false;
   int currentMoveIndex = -1;
+  bool isMyTurn = false;
+  bool isConnected = false;
+  bool isWaitingForOpponent = false;
 
   @override
   void initState() {
     super.initState();
     isBlackAtBottom = widget.isBlackAtBottom;
     position = createPosition(isBlackAtBottom: isBlackAtBottom);
-    isWhiteTurn = true; // White always starts
+    isWhiteTurn = true;
     updateKingPositions();
     checkForCheck();
+
+    _initializeGame();
+  }
+
+  @override
+  void dispose() {
+    _disconnectSocket();
+    super.dispose();
+  }
+
+  Future<void> _initializeGame() async {
+    await _loadUserData();
+    if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
+      _connectSocket();
+      setState(() {
+        gameStatus = 'Connecting to server...';
+      });
+    } else {
+      setState(() {
+        gameStatus = 'Please log in to play';
+      });
+      toastInfo("User not logged in. Please log in to play online.");
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _currentUserDetail = UserDetail.fromSharedPreferences(prefs);
+      });
+    } catch (e) {
+      logger.e('Error loading user data: $e');
+    }
+  }
+
+  void _connectSocket() {
+    if (socket?.connected == true) {
+      logger.d('Socket already connected');
+      return;
+    }
+
+    socket = io.io(ApiList.baseUrl, <String, dynamic>{
+      'transports': ['websocket', 'polling'],
+      'autoConnect': false,
+      'reconnection': true,
+      'reconnectionDelay': 1000,
+      'reconnectionAttempts': 5,
+      'timeout': 20000,
+    });
+
+    socket?.connect();
+    _setupSocketListeners();
+  }
+
+  void _setupSocketListeners() {
+    socket?.onConnect((_) {
+      logger.d('Connected to Socket.IO');
+      setState(() {
+        isConnected = true;
+        gameStatus = 'Connected! Looking for game...';
+      });
+
+      if (_currentUserDetail != null && _currentUserDetail!.id.isNotEmpty) {
+        _joinRoom();
+      }
+    });
+
+    socket?.onDisconnect((_) {
+      logger.d('Disconnected from Socket.IO');
+      setState(() {
+        isConnected = false;
+        gameStatus = 'Disconnected from server';
+      });
+    });
+
+    socket?.onConnectError((err) {
+      logger.e('Connection Error: $err');
+      setState(() {
+        gameStatus = 'Connection failed: $err';
+      });
+    });
+
+    socket?.onError((err) {
+      logger.e('Socket Error: $err');
+    });
+
+    // Game-specific socket listeners
+    socket?.on('roomJoined', _onRoomJoined);
+    socket?.on('updatedRoom', _onUpdatedRoom);
+    socket?.on('receive_boardData', _onReceiveBoardData);
+    socket?.on('nextPlayerTurn', _onNextPlayerTurn);
+    socket?.on('startGame', _onStartGame);
+    socket?.on('playerWon', _onPlayerWon);
+    socket?.on('checkMate', _onCheckMate);
+    socket?.on('abort', _onGameAbort);
+    socket?.on('roomLeftPlayerId', _onRoomLeft);
+    socket?.on('DrawMessage', _onDrawMessage);
+    socket?.on('DrawStatus', _onDrawStatus);
+    socket?.on('ThreeFold', _onThreeFold);
+    socket?.on('threefoldStatus', _onThreefoldStatus);
+    socket?.on('rematch', _onRematch);
+    socket?.on('rematchResponse', _onRematchResponse);
+    socket?.on('turnBack', _onTurnBack);
+    socket?.on('turnBackStatus', _onTurnBackStatus);
+    socket?.on('timer1', _onTimer1);
+    socket?.on('timer2', _onTimer2);
+    socket?.on('moveList', _onMoveList);
+    socket?.on('errorOccured', _onError);
+  }
+
+  void _onRoomJoined(dynamic data) {
+    logger.d('Room joined: $data');
+    setState(() {
+      roomId = data['roomId'];
+      gameStatus = 'Room joined: $roomId';
+      isWaitingForOpponent = true;
+    });
+  }
+
+  void _onUpdatedRoom(dynamic data) {
+    logger.d('Room updated: $data');
+    setState(() {
+      nextPlayerColor = data['nextPlayerColor'];
+      players = List<Map<String, dynamic>>.from(data['players'] ?? []);
+      timer1 = _convertSecondsToMinutes(data['timer1'] ?? 0);
+      timer2 = _convertSecondsToMinutes(data['timer2'] ?? 0);
+
+      if (players.length >= 2) {
+        startGame = true;
+        isWaitingForOpponent = false;
+        isPopupDisabled = true;
+        gameStatus = 'Game starting...';
+
+        // Determine player color and board orientation
+        bool isCurrentUserBlack = players.any((p) =>
+            p['playerId'] == _currentUserDetail?.id && p['colour'] == 'b');
+
+        if (isCurrentUserBlack != isBlackAtBottom) {
+          resetGame(blackAtBottom: isCurrentUserBlack);
+        }
+
+        _updateTurnStatus();
+      }
+
+      showboard = true;
+    });
+  }
+
+  void _onReceiveBoardData(dynamic data) {
+    logger.d('Received board data: $data');
+    if (data['data'] != null && data['data']['newPosition'] != null) {
+      final List<dynamic> newPositionData = data['data']['newPosition'];
+      final List<List<String>> convertedPosition =
+          _convertBackendBoard(newPositionData);
+
+      setState(() {
+        if (newPositionData.isNotEmpty) {
+          bool isCurrentUserBlack = players.isNotEmpty &&
+              players.any((p) =>
+                  p['playerId'] == _currentUserDetail?.id &&
+                  p['colour'] == 'w');
+          logger.d('isCurrentUserBlack: $isCurrentUserBlack');
+        }
+        position = convertedPosition;
+        selectedRow = null;
+        selectedCol = null;
+        resetValidMoves();
+        updateKingPositions();
+        checkForCheck();
+
+        // Update turn based on the move
+        isWhiteTurn = true;
+        _updateTurnStatus();
+      });
+    }
+  }
+
+  void _onNextPlayerTurn(dynamic data) {
+    logger.d('Next player turn: $data');
+    setState(() {
+      playerNextTurnColor = data['playerColour'] ?? '';
+      playerNextId = data['playerId'] ?? '';
+      // _updateTurnStatus();
+    });
+  }
+
+  void _onStartGame(dynamic data) {
+    logger.d('Game started: $data');
+    setState(() {
+      startGame = data['start'] ?? false;
+      isPopupDisabled = true;
+      gameStatus = 'Game started!';
+      _updateTurnStatus();
+    });
+  }
+
+  void _onPlayerWon(dynamic data) {
+    logger.d('Player won: $data');
+    setState(() {
+      winData = data;
+      gameStatus =
+          data['playerId'] == _currentUserDetail?.id ? 'You Win!' : 'You Lose!';
+      isMyTurn = false;
+    });
+  }
+
+  void _onCheckMate(dynamic data) {
+    logger.d('Checkmate: $data');
+    setState(() {
+      gameStatus = 'Checkmate!';
+      isMyTurn = false;
+    });
+  }
+
+  void _onGameAbort(dynamic data) {
+    logger.d('Game aborted: $data');
+    setState(() {
+      isGameAborted = true;
+      gameStatus = 'Game Aborted!';
+      isMyTurn = false;
+    });
+  }
+
+  void _onRoomLeft(dynamic data) {
+    logger.d('Room left: $data');
+    setState(() {
+      isRoomLeft = true;
+      gameStatus = 'Opponent Left!';
+      isMyTurn = false;
+    });
+  }
+
+  void _onDrawMessage(dynamic data) {
+    logger.d('Draw message: $data');
+    setState(() {
+      drawMessage = data['message'];
+      showDrawConfirmation = true;
+    });
+  }
+
+  void _onDrawStatus(dynamic data) {
+    logger.d('Draw status: $data');
+    setState(() {
+      drawStatus = data['DrawStatus'] ?? false;
+      if (drawStatus) {
+        gameStatus = 'Game Drawn!';
+        isMyTurn = false;
+      }
+      showDrawConfirmation = false;
+    });
+  }
+
+  void _onThreeFold(dynamic data) {
+    logger.d('Threefold: $data');
+    setState(() {
+      threefoldMessage = data['message'];
+      showThreefoldConfirmation = true;
+    });
+  }
+
+  void _onThreefoldStatus(dynamic data) {
+    logger.d('Threefold status: $data');
+    setState(() {
+      threefoldStatus = data['threefoldStatus'] ?? false;
+      if (threefoldStatus) {
+        gameStatus = 'Game Drawn by Threefold Repetition!';
+        isMyTurn = false;
+      }
+      showThreefoldConfirmation = false;
+    });
+  }
+
+  void _onRematch(dynamic data) {
+    logger.d('Rematch: $data');
+    setState(() {
+      rematchRequested = true;
+      showRematchConfirmation = true;
+    });
+  }
+
+  void _onRematchResponse(dynamic data) {
+    logger.d('Rematch response: $data');
+    setState(() {
+      rematchRequested = false;
+      showRematchConfirmation = false;
+      if (data != false) {
+        newGameTriggered = true;
+        _resetGameState();
+      }
+    });
+  }
+
+  void _onTurnBack(dynamic data) {
+    logger.d('Turn back: $data');
+    setState(() {
+      takebackRequested = true;
+      showTakebackConfirmation = true;
+    });
+  }
+
+  void _onTurnBackStatus(dynamic data) {
+    logger.d('Turn back status: $data');
+    setState(() {
+      takebackRequested = false;
+      showTakebackConfirmation = false;
+      if (data['turnBackStatus'] == true) {
+        // Handle successful takeback
+        toastInfo('Takeback accepted!');
+      }
+    });
+  }
+
+  void _onTimer1(dynamic data) {
+    setState(() {
+      timer1 = data?.toString() ?? '00:00';
+    });
+  }
+
+  void _onTimer2(dynamic data) {
+    setState(() {
+      timer2 = data?.toString() ?? '00:00';
+    });
+  }
+
+  void _onMoveList(dynamic data) {
+    logger.d('Move list: $data');
+    setState(() {
+      moveList = data ?? [];
+    });
+  }
+
+  void _onError(dynamic data) {
+    logger.e('Socket error: $data');
+    toastInfo('Error: $data');
+  }
+
+  void _updateTurnStatus() {
+    if (players.isEmpty || _currentUserDetail == null) return;
+
+    final currentPlayer = players.firstWhere(
+      (p) => p['playerId'] == _currentUserDetail!.id,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (currentPlayer.isNotEmpty) {
+      final myColor = currentPlayer['colour'] as String?;
+      final currentTurnColor = playerNextTurnColor.isNotEmpty
+          ? playerNextTurnColor
+          : (isWhiteTurn ? 'w' : 'b');
+
+      setState(() {
+        isMyTurn = myColor == currentTurnColor;
+        gameStatus = isMyTurn ? 'Your turn' : 'Opponent\'s turn';
+      });
+    }
+  }
+
+  void _resetGameState() {
+    setState(() {
+      position = createPosition(isBlackAtBottom: isBlackAtBottom);
+      selectedRow = null;
+      selectedCol = null;
+      resetValidMoves();
+      isWhiteTurn = true;
+      moveHistory.clear();
+      boardHistory.clear();
+      currentMoveIndex = -1;
+      updateKingPositions();
+      checkForCheck();
+      _updateTurnStatus();
+    });
+  }
+
+  List<List<String>> _convertBackendBoard(List<dynamic> boardData) {
+    if (boardData.isEmpty) return position;
+
+    int size = boardData.length;
+    List<List<String>> convertedBoard =
+        List.generate(size, (_) => List.filled(size, ''));
+
+    for (int i = 0; i < size; i++) {
+      if (boardData[i] is List) {
+        List row = boardData[i];
+        for (int j = 0; j < row.length && j < size; j++) {
+          convertedBoard[i][j] = row[j]?.toString() ?? '';
+        }
+      }
+    }
+
+    return convertedBoard;
+  }
+
+  String _convertSecondsToMinutes(int totalSeconds) {
+    int minutes = totalSeconds ~/ 60;
+    int seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  void _joinRoom() {
+    if (_currentUserDetail == null || _currentUserDetail!.id.isEmpty) {
+      toastInfo("User data not loaded. Cannot join room.");
+      return;
+    }
+
+    if (_currentUserDetail!.dynamoCoin < 200) {
+      toastInfo("Minimum 200 coins required to play");
+      return;
+    }
+
+    final String currentUrl = Uri.base.toString();
+    final bool isTournament = currentUrl.contains("tournament:");
+    final String? uniqueID =
+        isTournament ? currentUrl.split("tournament:")[1].split('/')[0] : null;
+    final String currentRoomId = uniqueID ?? 'randomMultiplayer';
+    const String currentTime = '600';
+
+    final Map<String, dynamic> joinRoomData = {
+      "playerId": _currentUserDetail!.id,
+      "name": _currentUserDetail!.name,
+      "coin": 200,
+      "profileImageUrl": "null",
+      "playerStatus": "Good",
+      "joinId": currentRoomId,
+      "timer": currentTime,
+      "countryicon": _currentUserDetail!.countryIcon,
+      "colour": null, // Let backend assign
+    };
+
+    try {
+      if (isTournament) {
+        socket?.emit('joinRoomViaTournament', joinRoomData);
+      } else if (currentRoomId == "randomMultiplayer") {
+        socket?.emit('joinRoom', joinRoomData);
+      } else {
+        socket?.emit('joinById', joinRoomData);
+      }
+
+      setState(() {
+        isWaitingForOpponent = true;
+        gameStatus = 'Joining room...';
+      });
+    } catch (e) {
+      logger.e('Error joining room: $e');
+      toastInfo('Failed to join room');
+    }
+  }
+
+  void _disconnectSocket() {
+    if (socket?.connected == true) {
+      if (roomId != null && _currentUserDetail != null) {
+        socket?.emit('leaveRoom', {
+          "roomId": roomId,
+          "playerId": _currentUserDetail!.id,
+        });
+      }
+      socket?.disconnect();
+    }
+    socket?.dispose();
   }
 
   void resetValidMoves() {
@@ -194,7 +577,6 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
   }
 
   bool isSquareUnderAttack(int row, int col, bool byWhite) {
-    // Check if a square is under attack by the specified color
     for (int r = 0; r < 10; r++) {
       for (int c = 0; c < 10; c++) {
         String piece = position[r][c];
@@ -203,7 +585,6 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
         bool isPieceWhite = piece.startsWith('w');
         if (isPieceWhite != byWhite) continue;
 
-        // Temporarily calculate moves for this piece
         List<List<bool>> tempValidMoves =
             List.generate(10, (_) => List.filled(10, false));
 
@@ -245,30 +626,26 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     updateKingPositions();
 
     if (whiteKingPosition != null) {
-      isWhiteKingInCheck = isSquareUnderAttack(whiteKingPosition!.row,
-          whiteKingPosition!.col, false // attacked by black
-          );
+      isWhiteKingInCheck = isSquareUnderAttack(
+        whiteKingPosition!.row,
+        whiteKingPosition!.col,
+        false,
+      );
     }
 
     if (blackKingPosition != null) {
-      isBlackKingInCheck = isSquareUnderAttack(blackKingPosition!.row,
-          blackKingPosition!.col, true // attacked by white
-          );
+      isBlackKingInCheck = isSquareUnderAttack(
+        blackKingPosition!.row,
+        blackKingPosition!.col,
+        true,
+      );
     }
   }
 
-  // Helper methods for attack calculations (similar to move calculations but only for attacks)
   void _calculatePawnAttacks(
       int row, int col, bool isWhite, List<List<bool>> attacks) {
-    int direction;
+    int direction = isBlackAtBottom ? (isWhite ? -1 : 1) : (isWhite ? 1 : -1);
 
-    if (isBlackAtBottom) {
-      direction = isWhite ? -1 : 1;
-    } else {
-      direction = isWhite ? 1 : -1;
-    }
-
-    // Pawn attacks diagonally
     for (int i = -1; i <= 1; i += 2) {
       if (col + i >= 0 &&
           col + i < 10 &&
@@ -281,7 +658,6 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
 
   void _calculateStraightAttacks(
       int row, int col, bool isWhite, List<List<bool>> attacks) {
-    // Horizontal attacks
     for (int dCol in [-1, 1]) {
       for (int c = col + dCol; c >= 0 && c < 10; c += dCol) {
         attacks[row][c] = true;
@@ -289,7 +665,6 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
       }
     }
 
-    // Vertical attacks
     for (int dRow in [-1, 1]) {
       for (int r = row + dRow; r >= 0 && r < 10; r += dRow) {
         attacks[r][col] = true;
@@ -545,34 +920,40 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     }
   }
 
-  // void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
-  //   String piece = position[fromRow][fromCol];
-  //   String capturedPiece = position[toRow][toCol];
+  String generateMoveNotation(
+      int fromRow, int fromCol, int toRow, int toCol, piece,
+      {bool isCapture = false, required bool isBlackAtBottom}) {
+    // Add this parameter
 
-  //   // Create move notation
-  //   Position fromPos =
-  //       Position(fromRow, fromCol, isBlackAtBottom: isBlackAtBottom);
-  //   Position toPos = Position(toRow, toCol, isBlackAtBottom: isBlackAtBottom);
-  //   String moveNotation = '${fromPos.algebraic}-${toPos.algebraic}';
-  //   if (capturedPiece.isNotEmpty) {
-  //     moveNotation += ' (captured ${capturedPiece.toUpperCase()})';
-  //   }
+    String pp = '';
+    if (pieceString != null && pieceString!.isNotEmpty) {
+      final lastChar = pieceString!.characters.last;
+      pp = lastChar.toUpperCase();
+    }
 
-  //   setState(() {
-  //     position[toRow][toCol] = piece;
-  //     position[fromRow][fromCol] = '';
-  //     selectedRow = null;
-  //     selectedCol = null;
-  //     resetValidMoves();
-  //     isWhiteTurn = !isWhiteTurn;
-  //     moveHistory.add(moveNotation);
+    String from =
+        Position(fromRow, fromCol, isBlackAtBottom: isBlackAtBottom).algebraic;
+    String to =
+        Position(toRow, toCol, isBlackAtBottom: isBlackAtBottom).algebraic;
+    print("pp ${pp} $from $to");
+    if (isCapture) {
+      if (pp == 'P') {
+        return '${from[0]}x$to';
+      }
+      return '$pp${from[0]}x$to';
+    } else {
+      if (pp == 'P') {
+        return '$to';
+      }
 
-  //     // Check for check after the move
-  //     checkForCheck();
-  //   });
-  // }
+      return "${pp}$to";
+    }
+  }
+
   void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
     // Create a deep copy of the current position
+    bool isCapture = position[toRow][toCol].isNotEmpty;
+
     List<List<String>> newPosition =
         position.map((row) => List<String>.from(row)).toList();
 
@@ -590,7 +971,24 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     if (capturedPiece.isNotEmpty) {
       moveNotation += ' (captured ${capturedPiece.toUpperCase()})';
     }
-
+    final dddddd = generateMoveNotation(
+        fromRow,
+        fromCol,
+        toRow,
+        toCol,
+        isCapture: isCapture,
+        isBlackAtBottom: isBlackAtBottom,
+        piece);
+    logger.d("Move notation: $dddddd ");
+    if (socket != null && roomId != null && _currentUserDetail != null) {
+      final ddddd = newPosition;
+      socket?.emit('boardUpdate', {
+        'roomId': roomId,
+        'boardData': {"newPosition": ddddd},
+        'playerId': _currentUserDetail!.id,
+        'move': dddddd,
+      });
+    }
     setState(() {
       position = newPosition;
       selectedRow = null;
@@ -752,37 +1150,39 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
 
                 return GestureDetector(
                   onTap: () {
-                    if (selectedRow != null &&
-                        selectedCol != null &&
-                        isValidMove) {
-                      // Make the move
-                      movePiece(selectedRow!, selectedCol!, row, col);
-                    } else if (piece.isNotEmpty) {
-                      // Check if it's the correct player's turn
-                      bool isPieceWhite = piece.startsWith('w');
-                      if (isPieceWhite == isWhiteTurn) {
-                        setState(() {
-                          selectedRow = row;
-                          selectedCol = col;
-                          calculateValidMoves(row, col);
-                        });
+                    if (_currentUserDetail!.id == playerNextId) {
+                      if (selectedRow != null &&
+                          selectedCol != null &&
+                          isValidMove) {
+                        // Make the move
+                        movePiece(selectedRow!, selectedCol!, row, col);
+                      } else if (piece.isNotEmpty) {
+                        // Check if it's the correct player's turn
+                        bool isPieceWhite = piece.startsWith('w');
+                        if (isPieceWhite == isWhiteTurn) {
+                          setState(() {
+                            selectedRow = row;
+                            selectedCol = col;
+                            calculateValidMoves(row, col);
+                          });
+                        } else {
+                          // Show message for wrong turn
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  'It\'s ${isWhiteTurn ? 'White' : 'Black'}\'s turn!'),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        }
                       } else {
-                        // Show message for wrong turn
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'It\'s ${isWhiteTurn ? 'White' : 'Black'}\'s turn!'),
-                            duration: const Duration(seconds: 1),
-                          ),
-                        );
+                        // Deselect
+                        setState(() {
+                          selectedRow = null;
+                          selectedCol = null;
+                          resetValidMoves();
+                        });
                       }
-                    } else {
-                      // Deselect
-                      setState(() {
-                        selectedRow = null;
-                        selectedCol = null;
-                        resetValidMoves();
-                      });
                     }
                   },
                   child: Container(

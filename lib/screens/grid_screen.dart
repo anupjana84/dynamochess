@@ -421,6 +421,7 @@ class _GridScreenState extends State<GridScreen> {
       });
 
       socket?.on('playerWon', (data) {
+        print("object $data");
         setState(() {
           //   winData = data;
           // gameStatus = data['playerId'] == _currentUserDetail?.id
@@ -644,34 +645,75 @@ class _GridScreenState extends State<GridScreen> {
     if (piece.isEmpty) return;
 
     bool isWhite = piece[0] == 'w';
-    // bool isWhite = piece.startsWith('w');
-    _currentUserDetail!.id == playerNextId ? isWhite = true : isWhite = false;
     String pieceType = piece.substring(1);
 
     switch (pieceType) {
       case 'p': // Pawn
-        // Changed direction for pawns: white moves up (decreasing row), black moves down (increasing row)
-        int direction = isWhite ? -1 : 1;
-        // Move forward
+        // Get the current player's perspective
+        bool isCurrentUserBlack = players.isNotEmpty &&
+            players.any((p) =>
+                p['playerId'] == _currentUserDetail?.id && p['colour'] == 'w');
+
+        // Determine movement direction based on piece color and perspective
+        int direction;
+        if (isCurrentUserBlack) {
+          // For black at bottom perspective
+          direction = isWhite ? -1 : 1; // White moves up, black moves down
+        } else {
+          // For white at bottom perspective
+          direction = isWhite ? 1 : -1; // White moves down, black moves up
+        }
+
+        // Check single square move forward
         if (row + direction >= 0 && row + direction < 10) {
           if (position[row + direction][col].isEmpty) {
             validMoves[row + direction][col] = true;
-            // First move can be up to 3 squares
-            // Adjusted starting rows for initial 3-square move
-            if ((isWhite && row == 8) || (!isWhite && row == 1)) {
-              int maxSteps = 3;
-              for (int steps = 2; steps <= maxSteps; steps++) {
-                if (row + steps * direction >= 0 &&
-                    row + steps * direction < 10 &&
-                    position[row + steps * direction][col].isEmpty) {
-                  validMoves[row + steps * direction][col] = true;
-                } else {
-                  break; // Stop if there's a piece in the way
-                }
+
+            // Check for initial 3-square move
+            bool isStartingPosition = false;
+
+            if (isWhite) {
+              // White pawn starting positions
+              if (isCurrentUserBlack) {
+                isStartingPosition =
+                    row == 8; // White starts at row 8 (black at bottom)
+              } else {
+                isStartingPosition =
+                    row == 1; // White starts at row 1 (white at bottom)
+              }
+            } else {
+              // Black pawn starting positions
+              if (isCurrentUserBlack) {
+                isStartingPosition =
+                    row == 1; // Black starts at row 1 (black at bottom)
+              } else {
+                isStartingPosition =
+                    row == 8; // Black starts at row 8 (white at bottom)
+              }
+            }
+
+            // If on starting position, check for 2 and 3 squares ahead
+            if (isStartingPosition) {
+              // Check two squares ahead
+              if (row + 2 * direction >= 0 &&
+                  row + 2 * direction < 10 &&
+                  position[row + direction][col].isEmpty &&
+                  position[row + 2 * direction][col].isEmpty) {
+                validMoves[row + 2 * direction][col] = true;
+              }
+
+              // Check three squares ahead
+              if (row + 3 * direction >= 0 &&
+                  row + 3 * direction < 10 &&
+                  position[row + direction][col].isEmpty &&
+                  position[row + 2 * direction][col].isEmpty &&
+                  position[row + 3 * direction][col].isEmpty) {
+                validMoves[row + 3 * direction][col] = true;
               }
             }
           }
         }
+
         // Capture diagonally
         for (int i = -1; i <= 1; i += 2) {
           if (col + i >= 0 &&
