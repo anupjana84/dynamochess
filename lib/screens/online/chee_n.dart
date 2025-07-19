@@ -33,6 +33,13 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
   List<String> moveHistory = [];
   List<List<List<String>>> boardHistory = [];
 
+  //
+  bool isMoveLocked = false; // Prevents consecutive moves by same player
+  bool isTimerPaused = false; // Controls timer state
+  String? lastMovePlayerId; // Track who made the last move
+  DateTime? lastMoveTime;
+  //
+
   // Socket and game state
   io.Socket? socket;
   String timer1 = '00:00';
@@ -245,21 +252,43 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     });
   }
 
+  // void _onReceiveBoardData(dynamic data) {
+  //   logger.d('Received board data: $data');
+  //   if (data['data'] != null && data['data']['newPosition'] != null) {
+  //     final List<dynamic> newPositionData = data['data']['newPosition'];
+  //     final List<List<String>> convertedPosition =
+  //         _convertBackendBoard(newPositionData);
+
+  //     setState(() {
+  //       if (newPositionData.isNotEmpty) {
+  //         bool isCurrentUserBlack = players.isNotEmpty &&
+  //             players.any((p) =>
+  //                 p['playerId'] == _currentUserDetail?.id &&
+  //                 p['colour'] == 'w');
+  //         logger.d('isCurrentUserBlack: $isCurrentUserBlack');
+  //       }
+  //       position = convertedPosition;
+  //       selectedRow = null;
+  //       selectedCol = null;
+  //       resetValidMoves();
+  //       updateKingPositions();
+  //       checkForCheck();
+
+  //       // Update turn based on the move
+  //       isWhiteTurn = true;
+  //       _updateTurnStatus();
+  //     });
+  //   }
+  // }
   void _onReceiveBoardData(dynamic data) {
     logger.d('Received board data: $data');
+
     if (data['data'] != null && data['data']['newPosition'] != null) {
       final List<dynamic> newPositionData = data['data']['newPosition'];
       final List<List<String>> convertedPosition =
           _convertBackendBoard(newPositionData);
 
       setState(() {
-        if (newPositionData.isNotEmpty) {
-          bool isCurrentUserBlack = players.isNotEmpty &&
-              players.any((p) =>
-                  p['playerId'] == _currentUserDetail?.id &&
-                  p['colour'] == 'w');
-          logger.d('isCurrentUserBlack: $isCurrentUserBlack');
-        }
         position = convertedPosition;
         selectedRow = null;
         selectedCol = null;
@@ -267,19 +296,43 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
         updateKingPositions();
         checkForCheck();
 
+        // Unlock moves for the receiving player (opponent of the one who just moved)
+        isMoveLocked = false;
+        isTimerPaused = false;
+
         // Update turn based on the move
-        isWhiteTurn = true;
+        isWhiteTurn = !isWhiteTurn; // Toggle turn
         _updateTurnStatus();
       });
     }
   }
 
+  // void _onNextPlayerTurn(dynamic data) {
+  //   logger.d('Next player turn: $data');
+  //   setState(() {
+  //     playerNextTurnColor = data['playerColour'] ?? '';
+  //     playerNextId = data['playerId'] ?? '';
+  //     // _updateTurnStatus();
+  //   });
+  // }
+
   void _onNextPlayerTurn(dynamic data) {
     logger.d('Next player turn: $data');
+
     setState(() {
       playerNextTurnColor = data['playerColour'] ?? '';
       playerNextId = data['playerId'] ?? '';
-      // _updateTurnStatus();
+
+      // Unlock moves when it becomes player's turn
+      if (playerNextId == _currentUserDetail?.id) {
+        isMoveLocked = false;
+        isTimerPaused = false;
+      } else {
+        isMoveLocked = true;
+        isTimerPaused = true;
+      }
+
+      _updateTurnStatus();
     });
   }
 
@@ -433,6 +486,26 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     toastInfo('Error: $data');
   }
 
+  // void _updateTurnStatus() {
+  //   if (players.isEmpty || _currentUserDetail == null) return;
+
+  //   final currentPlayer = players.firstWhere(
+  //     (p) => p['playerId'] == _currentUserDetail!.id,
+  //     orElse: () => <String, dynamic>{},
+  //   );
+
+  //   if (currentPlayer.isNotEmpty) {
+  //     final myColor = currentPlayer['colour'] as String?;
+  //     final currentTurnColor = playerNextTurnColor.isNotEmpty
+  //         ? playerNextTurnColor
+  //         : (isWhiteTurn ? 'w' : 'b');
+
+  //     setState(() {
+  //       isMyTurn = myColor == currentTurnColor;
+  //       gameStatus = isMyTurn ? 'Your turn' : 'Opponent\'s turn';
+  //     });
+  //   }
+  // }
   void _updateTurnStatus() {
     if (players.isEmpty || _currentUserDetail == null) return;
 
@@ -448,26 +521,50 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
           : (isWhiteTurn ? 'w' : 'b');
 
       setState(() {
-        isMyTurn = myColor == currentTurnColor;
-        gameStatus = isMyTurn ? 'Your turn' : 'Opponent\'s turn';
+        bool newIsMyTurn = myColor == currentTurnColor;
+
+        // Only allow moves if it's actually my turn and moves aren't locked
+        isMyTurn = newIsMyTurn && !isMoveLocked;
+
+        if (newIsMyTurn && !isMoveLocked) {
+          gameStatus = 'Your turn - Make your move!';
+          isTimerPaused = false; // Resume timer for active player
+        } else if (newIsMyTurn && isMoveLocked) {
+          gameStatus = 'Please wait...';
+        } else {
+          gameStatus = 'Opponent\'s turn';
+          isTimerPaused = true; // Pause timer for inactive player
+        }
       });
     }
   }
 
-  void _resetGameState() {
-    setState(() {
-      position = createPosition(isBlackAtBottom: isBlackAtBottom);
-      selectedRow = null;
-      selectedCol = null;
-      resetValidMoves();
-      isWhiteTurn = true;
-      moveHistory.clear();
-      boardHistory.clear();
-      currentMoveIndex = -1;
-      updateKingPositions();
-      checkForCheck();
-      _updateTurnStatus();
-    });
+  // void _resetGameState() {
+  //   setState(() {
+  //     position = createPosition(isBlackAtBottom: isBlackAtBottom);
+  //     selectedRow = null;
+  //     selectedCol = null;
+  //     resetValidMoves();
+  //     isWhiteTurn = true;
+  //     moveHistory.clear();
+  //     boardHistory.clear();
+  //     currentMoveIndex = -1;
+  //     updateKingPositions();
+  //     checkForCheck();
+  //     _updateTurnStatus();
+  //   });
+  // }
+  void _handleMoveTimeout() {
+    // Call this method if a move hasn't been acknowledged within reasonable time
+    if (isMoveLocked &&
+        lastMoveTime != null &&
+        DateTime.now().difference(lastMoveTime!).inSeconds > 30) {
+      setState(() {
+        isMoveLocked = false; // Unlock moves after timeout
+        gameStatus = 'Connection issue - moves unlocked';
+      });
+      toastInfo('Move timeout - unlocking moves');
+    }
   }
 
   List<List<String>> _convertBackendBoard(List<dynamic> boardData) {
@@ -950,10 +1047,75 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     }
   }
 
+  // void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
+  //   // Create a deep copy of the current position
+  //   bool isCapture = position[toRow][toCol].isNotEmpty;
+
+  //   List<List<String>> newPosition =
+  //       position.map((row) => List<String>.from(row)).toList();
+
+  //   // Make the move on the copy
+  //   String piece = newPosition[fromRow][fromCol];
+  //   String capturedPiece = newPosition[toRow][toCol];
+  //   newPosition[toRow][toCol] = piece;
+  //   newPosition[fromRow][fromCol] = '';
+
+  //   // Create move notation
+  //   Position fromPos =
+  //       Position(fromRow, fromCol, isBlackAtBottom: isBlackAtBottom);
+  //   Position toPos = Position(toRow, toCol, isBlackAtBottom: isBlackAtBottom);
+  //   String moveNotation = '${fromPos.algebraic}-${toPos.algebraic}';
+  //   if (capturedPiece.isNotEmpty) {
+  //     moveNotation += ' (captured ${capturedPiece.toUpperCase()})';
+  //   }
+  //   final dddddd = generateMoveNotation(
+  //       fromRow,
+  //       fromCol,
+  //       toRow,
+  //       toCol,
+  //       isCapture: isCapture,
+  //       isBlackAtBottom: isBlackAtBottom,
+  //       piece);
+  //   logger.d("Move notation: $dddddd ");
+  //   if (socket != null && roomId != null && _currentUserDetail != null) {
+  //     final ddddd = newPosition;
+  //     socket?.emit('boardUpdate', {
+  //       'roomId': roomId,
+  //       'boardData': {"newPosition": ddddd},
+  //       'playerId': _currentUserDetail!.id,
+  //       'move': dddddd,
+  //     });
+  //   }
+  //   setState(() {
+  //     position = newPosition;
+  //     selectedRow = null;
+  //     selectedCol = null;
+  //     resetValidMoves();
+  //     isWhiteTurn = false;
+  //     moveHistory.add(moveNotation);
+  //     boardHistory.add(newPosition); // Store the new position
+  //     currentMoveIndex = -1; // Viewing latest position
+
+  //     checkForCheck();
+  //   });
+  // }
   void movePiece(int fromRow, int fromCol, int toRow, int toCol) {
+    // Prevent move if locked or not player's turn
+    if (isMoveLocked || !isMyTurn) {
+      toastInfo("Please wait for your turn");
+      return;
+    }
+
+    // Lock moves immediately after making a move
+    setState(() {
+      isMoveLocked = true;
+      isTimerPaused = true; // Pause timer until opponent moves
+      lastMoveTime = DateTime.now();
+      lastMovePlayerId = _currentUserDetail?.id;
+    });
+
     // Create a deep copy of the current position
     bool isCapture = position[toRow][toCol].isNotEmpty;
-
     List<List<String>> newPosition =
         position.map((row) => List<String>.from(row)).toList();
 
@@ -971,7 +1133,8 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     if (capturedPiece.isNotEmpty) {
       moveNotation += ' (captured ${capturedPiece.toUpperCase()})';
     }
-    final dddddd = generateMoveNotation(
+
+    final moveString = generateMoveNotation(
         fromRow,
         fromCol,
         toRow,
@@ -979,25 +1142,33 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
         isCapture: isCapture,
         isBlackAtBottom: isBlackAtBottom,
         piece);
-    logger.d("Move notation: $dddddd ");
+
+    logger.d("Move notation: $moveString");
+
+    // Send move to server
     if (socket != null && roomId != null && _currentUserDetail != null) {
-      final ddddd = newPosition;
       socket?.emit('boardUpdate', {
         'roomId': roomId,
-        'boardData': {"newPosition": ddddd},
+        'boardData': {"newPosition": newPosition},
         'playerId': _currentUserDetail!.id,
-        'move': dddddd,
+        'move': moveString,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
     }
+
     setState(() {
       position = newPosition;
       selectedRow = null;
       selectedCol = null;
       resetValidMoves();
-      isWhiteTurn = !isWhiteTurn;
+      isWhiteTurn = !isWhiteTurn; // Toggle turn
       moveHistory.add(moveNotation);
-      boardHistory.add(newPosition); // Store the new position
-      currentMoveIndex = -1; // Viewing latest position
+      boardHistory.add(newPosition);
+      currentMoveIndex = -1;
+
+      // Update turn status - now it's opponent's turn
+      isMyTurn = false;
+      gameStatus = 'Waiting for opponent...';
 
       checkForCheck();
     });
@@ -1060,6 +1231,29 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     });
   }
 
+  void _resetGameState() {
+    setState(() {
+      position = createPosition(isBlackAtBottom: isBlackAtBottom);
+      selectedRow = null;
+      selectedCol = null;
+      resetValidMoves();
+      isWhiteTurn = true;
+      moveHistory.clear();
+      boardHistory.clear();
+      currentMoveIndex = -1;
+
+      // Reset turn management state
+      isMoveLocked = false;
+      isTimerPaused = false;
+      lastMovePlayerId = null;
+      lastMoveTime = null;
+
+      updateKingPositions();
+      checkForCheck();
+      _updateTurnStatus();
+    });
+  }
+
   Widget _buildPieceWidget(String piece, int row, int col) {
     if (piece.isEmpty) return const SizedBox();
 
@@ -1093,6 +1287,146 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
     ]);
   }
 
+  // Widget _buildBoard() {
+  //   return LayoutBuilder(
+  //     builder: (context, constraints) {
+  //       final boardDimension = constraints.maxWidth < constraints.maxHeight
+  //           ? constraints.maxWidth
+  //           : constraints.maxHeight;
+  //       final safeBoardDimension = boardDimension <= 0 ? 300.0 : boardDimension;
+
+  //       return Center(
+  //         child: SizedBox(
+  //           width: safeBoardDimension,
+  //           height: safeBoardDimension,
+  //           child: GridView.builder(
+  //             physics: const NeverScrollableScrollPhysics(),
+  //             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+  //               crossAxisCount: 10,
+  //             ),
+  //             itemCount: 100,
+  //             itemBuilder: (context, index) {
+  //               // Convert GridView index to board coordinates
+  //               // GridView displays from top-left to bottom-right
+  //               int gridRow = index ~/ 10; // 0-9 from top to bottom
+  //               int gridCol = index % 10; // 0-9 from left to right
+
+  //               // Convert to internal position coordinates
+  //               // Internal array: (0,0) is always bottom-left conceptually
+  //               int row =
+  //                   9 - gridRow; // Flip vertically so (0,0) is bottom-left
+  //               int col = gridCol; // Keep horizontal as is
+
+  //               String piece = position[row][col];
+  //               bool isSelected = selectedRow == row && selectedCol == col;
+  //               bool isValidMove = validMoves[row][col];
+
+  //               // Checkerboard pattern based on grid position
+  //               Color tileColor = ((gridRow + gridCol) % 2 == 0)
+  //                   ? const Color(0xFFDCDA5C)
+  //                   : const Color(0xFF769656);
+
+  //               // Check if this square contains a king in danger
+  //               bool isKingInDanger = false;
+  //               if (piece == 'wk' && isWhiteKingInCheck) {
+  //                 isKingInDanger = true;
+  //               } else if (piece == 'bk' && isBlackKingInCheck) {
+  //                 isKingInDanger = true;
+  //               }
+
+  //               if (isKingInDanger) {
+  //                 tileColor = Colors.red.withOpacity(0.8);
+  //               } else if (isSelected) {
+  //                 tileColor = Colors.yellowAccent;
+  //               } else if (isValidMove) {
+  //                 tileColor = Colors.lightGreenAccent;
+  //               }
+
+  //               return GestureDetector(
+  //                 onTap: () {
+  //                   if (_currentUserDetail!.id == playerNextId) {
+  //                     if (selectedRow != null &&
+  //                         selectedCol != null &&
+  //                         isValidMove) {
+  //                       // Make the move
+  //                       movePiece(selectedRow!, selectedCol!, row, col);
+  //                     } else if (piece.isNotEmpty) {
+  //                       // Check if it's the correct player's turn
+  //                       bool isPieceWhite = piece.startsWith('w');
+  //                       if (isPieceWhite == isWhiteTurn) {
+  //                         setState(() {
+  //                           selectedRow = row;
+  //                           selectedCol = col;
+  //                           calculateValidMoves(row, col);
+  //                         });
+  //                       } else {
+  //                         // Show message for wrong turn
+  //                         ScaffoldMessenger.of(context).showSnackBar(
+  //                           SnackBar(
+  //                             content: Text(
+  //                                 'It\'s ${isWhiteTurn ? 'White' : 'Black'}\'s turn!'),
+  //                             duration: const Duration(seconds: 1),
+  //                           ),
+  //                         );
+  //                       }
+  //                     } else {
+  //                       // Deselect
+  //                       setState(() {
+  //                         selectedRow = null;
+  //                         selectedCol = null;
+  //                         resetValidMoves();
+  //                       });
+  //                     }
+  //                   }
+  //                 },
+  //                 child: Container(
+  //                   decoration: BoxDecoration(
+  //                     color: tileColor,
+  //                     border: Border.all(color: Colors.black, width: 0.5),
+  //                   ),
+  //                   child: Stack(
+  //                     children: [
+  //                       if (piece.isNotEmpty)
+  //                         Center(child: _buildPieceWidget(piece, row, col)),
+  //                       if (isValidMove && piece.isEmpty)
+  //                         Center(
+  //                           child: Container(
+  //                             width: 20,
+  //                             height: 20,
+  //                             decoration: const BoxDecoration(
+  //                               color: Colors.green,
+  //                               shape: BoxShape.circle,
+  //                             ),
+  //                           ),
+  //                         ),
+  //                       // Show algebraic notation in corner
+  //                       Positioned(
+  //                         bottom: 2,
+  //                         right: 2,
+  //                         child: Container(
+  //                           padding: const EdgeInsets.all(1),
+  //                           decoration: BoxDecoration(
+  //                             color: Colors.black.withOpacity(0.3),
+  //                             borderRadius: BorderRadius.circular(2),
+  //                           ),
+  //                           child: Text(
+  //                             Position(row, col).algebraic,
+  //                             style: const TextStyle(
+  //                                 fontSize: 8, color: Colors.white),
+  //                           ),
+  //                         ),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ),
+  //               );
+  //             },
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
   Widget _buildBoard() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1113,21 +1447,16 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
               itemCount: 100,
               itemBuilder: (context, index) {
                 // Convert GridView index to board coordinates
-                // GridView displays from top-left to bottom-right
-                int gridRow = index ~/ 10; // 0-9 from top to bottom
-                int gridCol = index % 10; // 0-9 from left to right
-
-                // Convert to internal position coordinates
-                // Internal array: (0,0) is always bottom-left conceptually
-                int row =
-                    9 - gridRow; // Flip vertically so (0,0) is bottom-left
-                int col = gridCol; // Keep horizontal as is
+                int gridRow = index ~/ 10;
+                int gridCol = index % 10;
+                int row = 9 - gridRow;
+                int col = gridCol;
 
                 String piece = position[row][col];
                 bool isSelected = selectedRow == row && selectedCol == col;
                 bool isValidMove = validMoves[row][col];
 
-                // Checkerboard pattern based on grid position
+                // Checkerboard pattern
                 Color tileColor = ((gridRow + gridCol) % 2 == 0)
                     ? const Color(0xFFDCDA5C)
                     : const Color(0xFF769656);
@@ -1150,39 +1479,73 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
 
                 return GestureDetector(
                   onTap: () {
-                    if (_currentUserDetail!.id == playerNextId) {
-                      if (selectedRow != null &&
-                          selectedCol != null &&
-                          isValidMove) {
-                        // Make the move
-                        movePiece(selectedRow!, selectedCol!, row, col);
-                      } else if (piece.isNotEmpty) {
-                        // Check if it's the correct player's turn
-                        bool isPieceWhite = piece.startsWith('w');
-                        if (isPieceWhite == isWhiteTurn) {
-                          setState(() {
-                            selectedRow = row;
-                            selectedCol = col;
-                            calculateValidMoves(row, col);
-                          });
-                        } else {
-                          // Show message for wrong turn
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'It\'s ${isWhiteTurn ? 'White' : 'Black'}\'s turn!'),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        }
-                      } else {
-                        // Deselect
+                    // Enhanced tap logic with turn locking
+                    // if (!isMyTurn) {
+                    //   ScaffoldMessenger.of(context).showSnackBar(
+                    //     const SnackBar(
+                    //       content: Text('Wait for your turn!'),
+                    //       duration: Duration(seconds: 1),
+                    //     ),
+                    //   );
+                    //   return;
+                    // }
+
+                    // if (isMoveLocked) {
+                    //   ScaffoldMessenger.of(context).showSnackBar(
+                    //     const SnackBar(
+                    //       content: Text('Please wait for opponent\'s response'),
+                    //       duration: Duration(seconds: 1),
+                    //     ),
+                    //   );
+                    //   return;
+                    // }
+
+                    // Check if it's the correct player based on server state
+                    if (_currentUserDetail?.id != playerNextId) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content:
+                              Text('It\'s not your turn according to server!'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (selectedRow != null &&
+                        selectedCol != null &&
+                        isValidMove) {
+                      // Make the move
+                      movePiece(selectedRow!, selectedCol!, row, col);
+                    } else if (piece.isNotEmpty) {
+                      // Check if it's the correct player's piece
+                      bool isPieceWhite = piece.startsWith('w');
+                      bool shouldBeWhiteTurn = playerNextTurnColor == 'w';
+
+                      if (isPieceWhite == shouldBeWhiteTurn) {
                         setState(() {
-                          selectedRow = null;
-                          selectedCol = null;
-                          resetValidMoves();
+                          selectedRow = row;
+                          selectedCol = col;
+                          pieceString =
+                              piece; // Set the piece string for move notation
+                          calculateValidMoves(row, col);
                         });
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'It\'s ${shouldBeWhiteTurn ? 'White' : 'Black'}\'s turn!'),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
                       }
+                    } else {
+                      // Deselect
+                      setState(() {
+                        selectedRow = null;
+                        selectedCol = null;
+                        resetValidMoves();
+                      });
                     }
                   },
                   child: Container(
@@ -1222,6 +1585,20 @@ class _ChessnewScreenState extends State<ChessnewScreen> {
                             ),
                           ),
                         ),
+                        // Show lock indicator when moves are disabled
+                        // if (isMoveLocked || !isMyTurn)
+                        //   Container(
+                        //     decoration: BoxDecoration(
+                        //       color: Colors.grey.withOpacity(0.5),
+                        //     ),
+                        //     child: const Center(
+                        //       child: Icon(
+                        //         Icons.lock,
+                        //         color: Colors.white70,
+                        //         size: 16,
+                        //       ),
+                        //     ),
+                        //   ),
                       ],
                     ),
                   ),

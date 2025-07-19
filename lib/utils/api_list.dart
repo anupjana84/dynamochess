@@ -3,7 +3,7 @@ class ApiList {
   //     // 'https://cd68-2409-40e1-10ff-9f46-81a5-897b-c976-6eda.ngrok-free.app';
   // static const String baseUrl =
   //     'https://dynamo-unicorn-chess-backend.onrender.com';
-  static const String baseUrl = 'https://caf64d08f31c.ngrok-free.app';
+  static const String baseUrl = 'https://dc9a5d081755.ngrok-free.app';
   static const String login = '$baseUrl/login';
   static const String register = '$baseUrl/register';
   // static const String dashboard = 'dashboard';

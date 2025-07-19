@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:dynamochess/models/user_details.dart';
 import 'package:dynamochess/utils/api_list.dart';
 import 'package:flutter/material.dart';
@@ -105,6 +106,7 @@ class GridScreen extends StatefulWidget {
 }
 
 class _GridScreenState extends State<GridScreen> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
   late List<List<String>> position;
   int? selectedRow;
   int? selectedCol;
@@ -222,6 +224,14 @@ class _GridScreenState extends State<GridScreen> {
     });
   }
 
+  void _playMoveSound(String sound) async {
+    try {
+      await _audioPlayer.play(AssetSource(sound));
+    } catch (e) {
+      print("Error playing sound: $e");
+    }
+  }
+
   String _convertSecondsToMinutes(int totalSeconds) {
     int minutes = totalSeconds ~/ 60;
     int seconds = totalSeconds % 60;
@@ -240,7 +250,7 @@ class _GridScreenState extends State<GridScreen> {
     // Replace with your actual backend URL
     socket = io.io(ApiList.baseUrl, <String, dynamic>{
       'transports': ['websocket', 'polling'],
-      'autoConnect': false,
+      'autoConnect': true,
       'reconnection': true,
       'timeout': 20000,
     });
@@ -1028,11 +1038,14 @@ class _GridScreenState extends State<GridScreen> {
         Position(toRow, toCol, isBlackAtBottom: isBlackAtBottom).algebraic;
     print("pp ${pp} $from $to");
     if (isCapture) {
+      _playMoveSound('sound/capture.mp3');
+
       if (pp == 'P') {
         return '${from[0]}x$to';
       }
       return '$pp${from[0]}x$to';
     } else {
+      _playMoveSound('sound/move.mp3');
       if (pp == 'P') {
         return '$to';
       }
